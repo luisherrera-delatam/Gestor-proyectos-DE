@@ -90,6 +90,16 @@ describe("fetchProjectData", () => {
         });
       }
 
+      if (url.includes("/projects/123/sections")) {
+        return jsonResponse({
+          data: [
+            { gid: "s1", name: "Infraestructura" },
+            { gid: "s2", name: "Capacitación" },
+          ],
+          next_page: null,
+        });
+      }
+
       if (url.includes("/projects/123/tasks")) {
         return jsonResponse({
           data: [
@@ -147,9 +157,10 @@ describe("fetchProjectData", () => {
 
     expect(result.project.name).toBe("Proyecto Demo");
     expect(result.sections).toHaveLength(2);
-    expect(result.sections.map((s) => s.name).sort()).toEqual([
-      "Capacitación",
+    // Sections must preserve the canonical Asana order from /sections endpoint
+    expect(result.sections.map((s) => s.name)).toEqual([
       "Infraestructura",
+      "Capacitación",
     ]);
     expect(result.totals.tasks).toBe(2);
     expect(result.totals.completed).toBe(1);
@@ -219,6 +230,9 @@ describe("fetchProjectData", () => {
           next_page: null,
         });
       }
+      if (url.includes("/projects/123/sections")) {
+        return jsonResponse({ data: [], next_page: null });
+      }
       if (url.includes("/subtasks")) return jsonResponse({ data: [], next_page: null });
       throw new Error(`Unexpected URL: ${url}`);
     });
@@ -283,6 +297,9 @@ describe("fetchProjectData", () => {
           ],
           next_page: null,
         });
+      }
+      if (url.includes("/projects/123/sections")) {
+        return jsonResponse({ data: [], next_page: null });
       }
       if (url.includes("/subtasks")) return jsonResponse({ data: [], next_page: null });
       throw new Error(`Unexpected URL: ${url}`);

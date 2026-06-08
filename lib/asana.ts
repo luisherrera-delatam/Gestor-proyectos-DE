@@ -149,6 +149,13 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
   );
   const project = projectRes.data;
 
+  // Fetch sections in their canonical display order — Asana returns them in
+  // the order users see them in the project (drag-and-drop preserved).
+  const sectionList = await fetchAllPaginated<AsanaSection>(
+    `/projects/${projectGid}/sections?opt_fields=name`,
+    token
+  );
+
   const taskFields = [
     "name",
     "completed",
@@ -179,15 +186,25 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
     }
   });
 
+  // Seed the section map in Asana's display order. Tasks land in the right
+  // bucket below, so the final array preserves that order.
+  const NO_SECTION = "Sin sección";
   const sectionMap = new Map<string, SectionGroup>();
+  for (const s of sectionList) {
+    const name = s.name?.trim() || NO_SECTION;
+    if (!sectionMap.has(name)) sectionMap.set(name, { name, tasks: [] });
+  }
+
   for (const t of tasks) {
     const sec = t.memberships?.find((m) => m.section)?.section;
-    const name = sec?.name?.trim() || "Sin sección";
+    const name = sec?.name?.trim() || NO_SECTION;
     if (!sectionMap.has(name)) sectionMap.set(name, { name, tasks: [] });
     sectionMap.get(name)!.tasks.push(t);
   }
 
-  const sections = Array.from(sectionMap.values());
+  // Drop empty sections — Asana sometimes leaves placeholder sections we don't
+  // want to render in the documents.
+  const sections = Array.from(sectionMap.values()).filter((s) => s.tasks.length > 0);
 
   let subTotal = 0;
   let subCompleted = 0;

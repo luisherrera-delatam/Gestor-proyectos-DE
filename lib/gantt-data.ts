@@ -10,6 +10,8 @@ export interface GanttRow {
   completed: boolean;
   overdue: boolean;
   milestone: boolean;
+  isSubtask: boolean;
+  parentTaskName: string | null;
   startLabel: string;
   endLabel: string;
   rangeLabel: string;
@@ -141,6 +143,28 @@ interface CandidateRow {
   task: AsanaTask;
   start: Date | null;
   end: Date | null;
+  isSubtask: boolean;
+  parentTaskName: string | null;
+}
+
+function resolveDates(task: AsanaTask): { start: Date | null; end: Date | null } {
+  const dueRaw = parseDate(task.due_on);
+  const completedRaw = parseDate(task.completed_at);
+  let start = parseDate(task.start_on);
+  let end = dueRaw;
+
+  if (!start && end) start = end;
+  if (!end && start) end = start;
+  if (!start && completedRaw) {
+    start = completedRaw;
+    end = completedRaw;
+  }
+  if (start && end && start > end) {
+    const tmp = start;
+    start = end;
+    end = tmp;
+  }
+  return { start, end };
 }
 
 export function buildGanttDataset(project: ProjectData, now: Date = new Date()): GanttDataset {
@@ -149,17 +173,7 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
 
   for (const section of project.sections) {
     for (const task of section.tasks) {
-      const dueRaw = parseDate(task.due_on);
-      const completedRaw = parseDate(task.completed_at);
-      let start = parseDate(task.start_on);
-      let end = dueRaw;
-
-      if (!start && end) start = end;
-      if (!end && start) end = start;
-      if (!start && completedRaw) {
-        start = completedRaw;
-        end = completedRaw;
-      }
+      const { start, end } = resolveDates(task);
 
       if (!start || !end) {
         skipped.push({
@@ -167,16 +181,33 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
           taskName: task.name,
           reason: "Sin fechas asignadas",
         });
-        continue;
+      } else {
+        candidates.push({
+          sectionName: section.name,
+          task,
+          start,
+          end,
+          isSubtask: false,
+          parentTaskName: null,
+        });
       }
 
-      if (start > end) {
-        const tmp = start;
-        start = end;
-        end = tmp;
+      // Subtasks with dates are added as their own rows, directly after their
+      // parent. Subtasks without dates are silently ignored — checklist-style
+      // items shouldn't clutter the diagram.
+      const subtasks = task.subtasks ?? [];
+      for (const sub of subtasks) {
+        const { start: sStart, end: sEnd } = resolveDates(sub);
+        if (!sStart || !sEnd) continue;
+        candidates.push({
+          sectionName: section.name,
+          task: sub,
+          start: sStart,
+          end: sEnd,
+          isSubtask: true,
+          parentTaskName: task.name,
+        });
       }
-
-      candidates.push({ sectionName: section.name, task, start, end });
     }
   }
 
@@ -216,6 +247,10 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
   const totalDays = daysBetween(minDate, maxDate);
   const today = startOfDay(now);
 
+  // Rows are built in the order Asana returns them (sections from the
+  // /sections endpoint, tasks in their position within each section, subtasks
+  // right after their parent). No alphabetical sort — that would override
+  // the user's manual ordering in Asana.
   const rows: GanttRow[] = candidates.map((c) => {
     const startDay = Math.max(0, daysBetween(minDate, c.start!));
     const endDay = Math.min(totalDays, daysBetween(minDate, c.end!));
@@ -235,16 +270,12 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
       completed: c.task.completed,
       overdue,
       milestone,
+      isSubtask: c.isSubtask,
+      parentTaskName: c.parentTaskName,
       startLabel,
       endLabel,
       rangeLabel,
     };
-  });
-
-  rows.sort((a, b) => {
-    if (a.sectionName !== b.sectionName) return a.sectionName.localeCompare(b.sectionName);
-    if (a.startDay !== b.startDay) return a.startDay - b.startDay;
-    return a.taskName.localeCompare(b.taskName);
   });
 
   const months = buildMonths(minDate, maxDate);

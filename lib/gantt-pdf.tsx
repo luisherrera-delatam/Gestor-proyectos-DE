@@ -176,7 +176,11 @@ const styles = StyleSheet.create({
     borderRightWidth: 0.5,
     borderRightColor: GRID,
   },
+  taskCellSub: {
+    paddingLeft: 28,
+  },
   taskText: { fontSize: 9, color: TEXT, lineHeight: 1.3 },
+  taskTextSub: { fontSize: 8, color: GRAY, lineHeight: 1.3 },
   assigneeCell: {
     width: ASSIGNEE_COL_W,
     paddingLeft: 8,
@@ -198,6 +202,12 @@ const styles = StyleSheet.create({
     top: 8,
     height: 12,
     borderRadius: 3,
+  },
+  barSub: {
+    position: "absolute",
+    top: 11,
+    height: 6,
+    borderRadius: 2,
   },
   barLabelInside: {
     position: "absolute",
@@ -443,20 +453,26 @@ function RenderItem({ item, dataset, zebra }: { item: Renderable; dataset: Gantt
   const right = dayToX(row.endDay + 1, dataset.totalDays);
   const width = Math.max(3, right - left);
   const fill = colorFor(row);
-  const insideLabelFits = width > 50;
+  const insideLabelFits = width > 50 && !row.isSubtask;
   const outsideLabelFits = !insideLabelFits && left + width + 60 < TIMELINE_W;
+  const taskCellStyle = row.isSubtask ? [styles.taskCell, styles.taskCellSub] : styles.taskCell;
+  const taskTextStyle = row.isSubtask ? styles.taskTextSub : styles.taskText;
+  const barStyle = row.isSubtask ? styles.barSub : styles.bar;
+  const labelStyle = row.isSubtask ? styles.barLabelOutside : styles.barLabelInside;
   return (
     <View style={zebra ? [styles.row, styles.rowZebra] : styles.row} wrap={false}>
-      <View style={styles.taskCell}>
-        <Text style={styles.taskText}>{row.taskName}</Text>
+      <View style={taskCellStyle}>
+        <Text style={taskTextStyle}>
+          {row.isSubtask ? `↳ ${row.taskName}` : row.taskName}
+        </Text>
       </View>
       <View style={styles.assigneeCell}>
         <Text style={styles.assigneeText}>{row.assignee || "—"}</Text>
       </View>
       <View style={styles.timelineCell}>
-        <View style={[styles.bar, { left, width, backgroundColor: fill }]} />
+        <View style={[barStyle, { left, width, backgroundColor: fill }]} />
         {insideLabelFits ? (
-          <Text style={[styles.barLabelInside, { left: left + 6 }]}>{row.rangeLabel}</Text>
+          <Text style={[labelStyle, { left: left + 6 }]}>{row.rangeLabel}</Text>
         ) : outsideLabelFits ? (
           <Text style={[styles.barLabelOutside, { left: left + width + 6 }]}>{row.rangeLabel}</Text>
         ) : null}

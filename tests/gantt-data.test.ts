@@ -139,7 +139,7 @@ describe("buildGanttDataset", () => {
     expect(ds.rows[0].overdue).toBe(false);
   });
 
-  it("groups rows by section in alphabetical order", () => {
+  it("preserves the section order coming from Asana (no alphabetical sort)", () => {
     const project = makeProject([
       {
         name: "Zeta",
@@ -151,8 +151,48 @@ describe("buildGanttDataset", () => {
       },
     ]);
     const ds = buildGanttDataset(project, new Date("2025-01-10"));
-    expect(ds.rows[0].sectionName).toBe("Alfa");
-    expect(ds.rows[1].sectionName).toBe("Zeta");
+    expect(ds.rows[0].sectionName).toBe("Zeta");
+    expect(ds.rows[1].sectionName).toBe("Alfa");
+  });
+
+  it("expands subtasks with dates as separate rows after their parent", () => {
+    const project = makeProject([
+      {
+        name: "Infra",
+        tasks: [
+          task({
+            name: "Padre",
+            start_on: "2025-01-01",
+            due_on: "2025-01-10",
+            subtasks: [
+              task({ name: "Sub con fechas", start_on: "2025-01-03", due_on: "2025-01-05" }),
+              task({ name: "Sub sin fechas" }),
+            ],
+          }),
+        ],
+      },
+    ]);
+    const ds = buildGanttDataset(project, new Date("2025-01-20"));
+    expect(ds.rows).toHaveLength(2);
+    expect(ds.rows[0].taskName).toBe("Padre");
+    expect(ds.rows[0].isSubtask).toBe(false);
+    expect(ds.rows[1].taskName).toBe("Sub con fechas");
+    expect(ds.rows[1].isSubtask).toBe(true);
+    expect(ds.rows[1].parentTaskName).toBe("Padre");
+    // Subtask without dates is silently ignored (not added to skipped).
+    expect(ds.skipped).toHaveLength(0);
+  });
+
+  it("does not add subtasks if the parent has no subtasks array", () => {
+    const project = makeProject([
+      {
+        name: "S",
+        tasks: [task({ name: "Padre", start_on: "2025-01-01", due_on: "2025-01-05" })],
+      },
+    ]);
+    const ds = buildGanttDataset(project, new Date("2025-01-20"));
+    expect(ds.rows).toHaveLength(1);
+    expect(ds.rows[0].isSubtask).toBe(false);
   });
 
   it("builds at least one month spanning the project range", () => {
