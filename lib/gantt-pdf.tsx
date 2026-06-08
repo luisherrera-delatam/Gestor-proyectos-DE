@@ -58,14 +58,14 @@ const styles = StyleSheet.create({
     color: TEXT,
   },
   header: {
-    height: HEADER_H,
+    minHeight: HEADER_H,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     borderBottomWidth: 1,
     borderBottomColor: LIGHTBLUE,
-    paddingBottom: 8,
-    marginBottom: 10,
+    paddingBottom: 12,
+    marginBottom: 12,
   },
   brandRow: { flexDirection: "row", alignItems: "center" },
   brandBox: {
@@ -85,9 +85,15 @@ const styles = StyleSheet.create({
     marginRight: 10,
     objectFit: "contain",
   },
-  brand: { fontSize: 8, color: GRAY, letterSpacing: 2, marginBottom: 2 },
-  title: { fontSize: 15, color: NAVY, fontFamily: "Helvetica-Bold" },
-  subtitle: { fontSize: 9, color: GRAY, marginTop: 2 },
+  brand: { fontSize: 8, color: GRAY, letterSpacing: 2, marginBottom: 1 },
+  subtitle: {
+    fontSize: 9,
+    color: GRAY,
+    fontFamily: "Helvetica-Bold",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  title: { fontSize: 14, color: NAVY, fontFamily: "Helvetica-Bold", lineHeight: 1.2 },
   meta: { textAlign: "right" },
   metaLabel: { fontSize: 7, color: GRAY, letterSpacing: 1 },
   metaValue: { fontSize: 10, color: NAVY, fontFamily: "Helvetica-Bold", marginTop: 2 },
@@ -343,10 +349,10 @@ function HeaderBlock({
         ) : (
           <Text style={styles.brandBox}>DX</Text>
         )}
-        <View style={{ maxWidth: 480 }}>
+        <View style={{ maxWidth: 470 }}>
           <Text style={styles.brand}>D A T A   E X P R E S S</Text>
-          <Text style={styles.title}>{dataset.projectName}</Text>
           <Text style={styles.subtitle}>Diagrama de Gantt</Text>
+          <Text style={styles.title}>{dataset.projectName}</Text>
         </View>
       </View>
       <View style={styles.meta}>
