@@ -15,9 +15,9 @@ const TEXT = "#1A2233";
 
 const PAGE_W = 842;
 const PAGE_H = 595;
-const MARGIN_X = 40;
-const MARGIN_TOP = 36;
-const MARGIN_BOTTOM = 44;
+const MARGIN_X = 58;
+const MARGIN_TOP = 46;
+const MARGIN_BOTTOM = 50;
 
 const HEADER_H = 56;
 const TIMELINE_HEAD_MONTH_H = 18;
