@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type Action = "acta" | "gantt";
+type Action = "inicio" | "acta" | "gantt";
 
 const TOKEN_STORAGE_KEY = "asanaweb.asana_token.v1";
 
@@ -52,11 +52,27 @@ export default function Home() {
     setError(null);
     setLoadingAction(action);
     try {
-      const endpoint = action === "acta" ? "/api/generate" : "/api/gantt";
-      const payload =
-        action === "acta"
-          ? { token, projectUrl, sponsor, contactoCliente, lecciones }
-          : { token, projectUrl };
+      let endpoint = "";
+      let payload: Record<string, string> = { token, projectUrl };
+      let fallback = "documento.docx";
+
+      switch (action) {
+        case "inicio":
+          endpoint = "/api/generate-inicio";
+          payload = { token, projectUrl, sponsor, contactoCliente };
+          fallback = "Acta_Inicio.docx";
+          break;
+        case "acta":
+          endpoint = "/api/generate";
+          payload = { token, projectUrl, sponsor, contactoCliente, lecciones };
+          fallback = "Acta_Cierre.docx";
+          break;
+        case "gantt":
+          endpoint = "/api/gantt";
+          payload = { token, projectUrl };
+          fallback = "Gantt.pdf";
+          break;
+      }
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -65,14 +81,15 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(data.error || `Error ${res.status}`);
       }
 
       const blob = await res.blob();
       const cd = res.headers.get("Content-Disposition") || "";
       const match = cd.match(/filename="?([^"]+)"?/);
-      const fallback = action === "acta" ? "Acta_Cierre.docx" : "Gantt.pdf";
       const filename = match ? match[1] : fallback;
 
       const url = URL.createObjectURL(blob);
@@ -95,7 +112,7 @@ export default function Home() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    generate("acta");
+    generate("inicio");
   }
 
   const formValid = token.trim().length > 0 && projectUrl.trim().length > 0;
@@ -113,7 +130,8 @@ export default function Home() {
               onError={(e) => {
                 // Fallback to a styled box if the logo PNG isn't present yet.
                 e.currentTarget.style.display = "none";
-                const placeholder = e.currentTarget.nextElementSibling as HTMLElement | null;
+                const placeholder = e.currentTarget
+                  .nextElementSibling as HTMLElement | null;
                 if (placeholder) placeholder.style.display = "flex";
               }}
             />
@@ -124,23 +142,30 @@ export default function Home() {
               DX
             </div>
             <div>
-              <p className="text-xs uppercase tracking-widest text-dxgray">Data Express</p>
+              <p className="text-xs uppercase tracking-widest text-dxgray">
+                Data Express
+              </p>
               <h1 className="text-xl font-semibold text-dxnavy leading-tight">
                 Generador de documentos del proyecto
               </h1>
             </div>
           </div>
           <p className="text-sm text-dxgray ml-15 pl-1">
-            Extrae datos de un proyecto de Asana y genera el Acta de Cierre (Word) o el Diagrama de
-            Gantt (PDF).
+            Extrae datos de un proyecto de Asana y genera el Acta de Inicio,
+            el Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el
+            mismo formato corporativo.
           </p>
         </header>
 
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5"
+        >
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-dxnavy">
-                Personal Access Token de Asana <span className="text-red-500">*</span>
+                Personal Access Token de Asana{" "}
+                <span className="text-red-500">*</span>
               </label>
               {tokenRemembered && (
                 <button
@@ -164,7 +189,8 @@ export default function Home() {
             {tokenRemembered ? (
               <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" />
-                Token recordado en este navegador. Click en "Olvidar token" para borrarlo.
+                Token recordado en este navegador. Click en &ldquo;Olvidar
+                token&rdquo; para borrarlo.
               </p>
             ) : (
               <p className="text-xs text-dxgray mt-1">
@@ -177,7 +203,8 @@ export default function Home() {
                 >
                   app.asana.com/0/my-apps
                 </a>
-                . Se guarda solo en este navegador después de la primera generación exitosa.
+                . Se guarda solo en este navegador después de la primera
+                generación exitosa.
               </p>
             )}
           </div>
@@ -195,18 +222,21 @@ export default function Home() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy focus:border-transparent text-sm"
             />
             <p className="text-xs text-dxgray mt-1">
-              Abre el proyecto en Asana y copia la URL completa de la barra de direcciones.
+              Abre el proyecto en Asana y copia la URL completa de la barra de
+              direcciones.
             </p>
           </div>
 
           <fieldset className="border-t border-gray-200 pt-4">
             <legend className="text-xs uppercase tracking-widest text-dxgray pr-2">
-              Solo para Acta de Cierre
+              Datos del Acta (Inicio y Cierre)
             </legend>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
               <div>
-                <label className="block text-sm font-medium text-dxnavy mb-1">Sponsor</label>
+                <label className="block text-sm font-medium text-dxnavy mb-1">
+                  Sponsor
+                </label>
                 <input
                   type="text"
                   value={sponsor}
@@ -231,13 +261,16 @@ export default function Home() {
 
             <div className="mt-4">
               <label className="block text-sm font-medium text-dxnavy mb-1">
-                Lecciones aprendidas
+                Lecciones aprendidas{" "}
+                <span className="text-xs text-dxgray font-normal">
+                  (solo Acta de Cierre)
+                </span>
               </label>
               <textarea
                 value={lecciones}
                 onChange={(e) => setLecciones(e.target.value)}
                 placeholder="Describe lo aprendido durante la ejecución del proyecto..."
-                rows={5}
+                rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy focus:border-transparent text-sm"
               />
             </div>
@@ -249,13 +282,26 @@ export default function Home() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
             <button
               type="submit"
               disabled={loadingAction !== null || !formValid}
               className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loadingAction === "acta" ? "Generando acta..." : "Generar Acta de Cierre (Word)"}
+              {loadingAction === "inicio"
+                ? "Generando..."
+                : "Acta de Inicio (Word)"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => generate("acta")}
+              disabled={loadingAction !== null || !formValid}
+              className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loadingAction === "acta"
+                ? "Generando..."
+                : "Acta de Cierre (Word)"}
             </button>
 
             <button
@@ -264,13 +310,15 @@ export default function Home() {
               disabled={loadingAction !== null || !formValid}
               className="bg-white border border-dxnavy text-dxnavy font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loadingAction === "gantt" ? "Generando Gantt..." : "Descargar Gantt (PDF)"}
+              {loadingAction === "gantt"
+                ? "Generando..."
+                : "Gantt (PDF)"}
             </button>
           </div>
         </form>
 
         <footer className="mt-6 text-center text-xs text-dxgray">
-          © Data Express · El token no se almacena ni se loguea.
+          © Data Express · El token no se almacena ni se loguea en el servidor.
         </footer>
       </div>
     </main>
