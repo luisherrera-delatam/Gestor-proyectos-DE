@@ -1,0 +1,83 @@
+# Deploy a Vercel con CI/CD
+
+Este proyecto usa **pnpm** (no npm). El archivo `package.json` incluye un `preinstall` con `npx only-allow pnpm` que bloquea cualquier intento de instalar con npm o yarn.
+
+El workflow `.github/workflows/ci.yml` corre:
+
+1. **Verify** (Node 20 y 22 en paralelo): `typecheck` → `test` → `build` con pnpm.
+2. **Deploy Preview** en cada Pull Request (gated en `verify`). Publica un comentario en el PR con la URL.
+3. **Deploy Production** en cada push a `main` (gated en `verify`).
+
+## Setup local
+
+```powershell
+# 1. Instalar pnpm (una sola vez, sin pasar por npm)
+iwr https://get.pnpm.io/install.ps1 -useb | iex
+
+# 2. Instalar dependencias
+pnpm install
+
+# 3. Arrancar dev server
+pnpm dev
+```
+
+## Setup CD (una sola vez)
+
+### 1. Crea el proyecto en Vercel
+
+Desde tu máquina, en la raíz del repo:
+
+```powershell
+pnpm add --global vercel
+vercel login
+vercel link
+```
+
+Esto crea `.vercel/project.json` con `orgId` y `projectId`. Toma nota de esos valores.
+
+Vercel detecta automáticamente `pnpm-lock.yaml` y usa pnpm para instalar dependencias.
+
+### 2. Genera un Vercel Token
+
+https://vercel.com/account/tokens → **Create Token** con scope para tu proyecto.
+
+### 3. Agrega 3 secrets en GitHub
+
+En tu repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
+
+| Secret | Valor |
+|---|---|
+| `VERCEL_TOKEN` | El token del paso 2 |
+| `VERCEL_ORG_ID` | El `orgId` de `.vercel/project.json` |
+| `VERCEL_PROJECT_ID` | El `projectId` de `.vercel/project.json` |
+
+### 4. Push y listo
+
+```powershell
+git init
+git add .
+git commit -m "init: asana to closure letter generator"
+git remote add origin <tu-repo-en-github>
+git push -u origin main
+```
+
+A partir de ese push:
+- Cada push a `main` → deploy a producción tras pasar tests.
+- Cada PR contra `main` → preview deploy comentado en el PR.
+
+## Por qué pnpm en lugar de npm
+
+- **Mejor protección contra supply-chain attacks:** pnpm 11 valida la lockfile contra políticas de cadena de suministro en cada install, y `minimumReleaseAge: 1440` (en `pnpm-workspace.yaml`) bloquea automáticamente paquetes publicados en las últimas 24 horas, lo que mitiga ataques de publicación maliciosa reciente.
+- **`allowBuilds` explícito:** solo los scripts de instalación autorizados (`sharp`) corren; el resto se ignora por defecto.
+- **Lockfile más estricto:** `pnpm install --frozen-lockfile` falla si el lockfile no concuerda exactamente, evitando instalaciones silenciosas con versiones distintas.
+- **`preinstall` bloquea npm:** si alguien intenta `npm install` por error, el comando aborta.
+
+## Alternativa simple (sin GitHub Actions para CD)
+
+Si prefieres que Vercel detecte el repo automáticamente y haga deploys sin pasar por Actions:
+
+1. En vercel.com → **Add New Project** → importa el repo de GitHub.
+2. Vercel hace deploys automáticos (sin secrets ni workflow de CD).
+3. En ese caso, edita `.github/workflows/ci.yml` y borra los jobs `deploy-preview` y `deploy-production` — deja solo `verify`.
+
+La ventaja del workflow actual es que los deploys quedan **gated por los tests** (Vercel auto-deploy no espera a tus tests).
