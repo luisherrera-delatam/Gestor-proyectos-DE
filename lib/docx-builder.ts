@@ -19,7 +19,7 @@ import {
   WidthType,
 } from "docx";
 import type { AsanaTask, ProjectData, SectionGroup } from "./asana";
-import { getLogoBuffer } from "./logo";
+import { getLogo } from "./logo";
 
 const NAVY = "0A2C5C";
 const LIGHTBLUE = "BEDCF0";
@@ -117,7 +117,7 @@ function kvRow(label: string, value: string, labelW = 3200, valueW = CONTENT_W -
 function buildCover(data: ProjectData): Paragraph[] {
   const { project } = data;
   const elems: Paragraph[] = [];
-  const logo = getLogoBuffer();
+  const logo = getLogo();
 
   elems.push(spacer(400));
 
@@ -128,8 +128,8 @@ function buildCover(data: ProjectData): Paragraph[] {
         spacing: { after: 200 },
         children: [
           new ImageRun({
-            type: "png",
-            data: logo,
+            type: logo.format,
+            data: logo.buffer,
             transformation: { width: 110, height: 110 },
             altText: {
               title: "Data Express",
