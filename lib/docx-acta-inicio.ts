@@ -48,21 +48,48 @@ import {
   spacer,
   txt,
 } from "./docx-chrome";
+import {
+  PRODUCT_MANAGER_NAME,
+  PRODUCT_MANAGER_ROLE,
+  getRoleForEmail,
+} from "./team-roles";
 
 const DOC_SHORT = "Acta de Inicio de Proyecto";
 const DOC_VERSION = "v1.0";
 
-function uniqueAssignees(data: ProjectData): string[] {
-  const set = new Set<string>();
+interface AssigneeWithRole {
+  name: string;
+  email: string | null;
+  role: string;
+}
+
+/**
+ * Devuelve la lista única de personas asignadas a tareas/subtareas del
+ * proyecto, junto con su cargo derivado del mapa email → cargo de
+ * team-roles.ts. La clave de deduplicación es el email cuando existe; si
+ * no, el nombre.
+ */
+function uniqueAssignees(data: ProjectData): AssigneeWithRole[] {
+  const byKey = new Map<string, AssigneeWithRole>();
+  const add = (name: string | undefined, email: string | null | undefined) => {
+    if (!name) return;
+    const key = (email || name).trim().toLowerCase();
+    if (byKey.has(key)) return;
+    byKey.set(key, {
+      name,
+      email: email ?? null,
+      role: getRoleForEmail(email),
+    });
+  };
   for (const sec of data.sections) {
     for (const t of sec.tasks) {
-      if (t.assignee?.name) set.add(t.assignee.name);
+      add(t.assignee?.name, t.assignee?.email);
       for (const s of t.subtasks || []) {
-        if (s.assignee?.name) set.add(s.assignee.name);
+        add(s.assignee?.name, s.assignee?.email);
       }
     }
   }
-  return Array.from(set).sort();
+  return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -124,22 +151,27 @@ function buildEntregablesTable(data: ProjectData): Table {
 }
 
 function buildStakeholdersTable(data: ProjectData, sponsor: string, contacto: string): Table {
-  const owner = data.project.owner?.name || "[Por completar]";
+  const ownerName = data.project.owner?.name || "[Por completar]";
+  const ownerEmail = data.project.owner?.email ?? null;
+  const ownerRole = ownerEmail ? getRoleForEmail(ownerEmail) : "Líder del proyecto";
   const assignees = uniqueAssignees(data);
 
   const rows: [string, string, string][] = [
     ["Patrocinador (Sponsor)", sponsor || "[Por completar]", "Cliente"],
-    ["Gerente del proyecto", owner, "Data Express"],
+    ["Líder del proyecto", ownerName, ownerRole],
+    [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME, PRODUCT_MANAGER_ROLE],
     ["Contacto técnico del cliente", contacto || "[Por completar]", "Cliente"],
   ];
 
   for (const a of assignees) {
-    if (a === owner) continue;
-    rows.push(["Miembro del equipo", a, "—"]);
+    // Evitar duplicar al líder del proyecto y al PM si aparecen como assignees.
+    if (a.name === ownerName) continue;
+    if (a.name === PRODUCT_MANAGER_NAME) continue;
+    rows.push(["Miembro del equipo", a.name, a.role]);
   }
 
   return makeTable(
-    ["Rol", "Nombre", "Organización"],
+    ["Rol formal", "Nombre", "Cargo / Organización"],
     rows,
     [3000, 3500, CONTENT_W - 3000 - 3500]
   );
@@ -224,9 +256,19 @@ function buildFirmasTable(data: ProjectData, sponsor: string): Table {
         children: [
           sign("Por el Cliente", sponsor, "Sponsor del proyecto"),
           sign(
-            "Por Data Express",
+            "Líder del Proyecto · Data Express",
             data.project.owner?.name || "Luis Herrera",
-            "Gerente del Proyecto"
+            "Líder del proyecto"
+          ),
+        ],
+      }),
+      new TableRow({
+        children: [
+          sign("Contacto del Cliente", "", "Contacto técnico"),
+          sign(
+            `${PRODUCT_MANAGER_ROLE} · Data Express`,
+            PRODUCT_MANAGER_NAME,
+            PRODUCT_MANAGER_ROLE
           ),
         ],
       }),
@@ -257,7 +299,8 @@ export async function buildActaInicio(
     ["Proyecto", projectName],
     ["Fecha de inicio", fechaInicio],
     ["Fecha de cierre planeada", fechaFinPlaneada],
-    ["Gerente del proyecto", responsable],
+    ["Líder del proyecto", responsable],
+    [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
     ["Sponsor", sponsor || "[Por completar]"],
     ["Total de tareas planeadas", `${data.totals.tasks}`],
     ["Total de etapas (secciones)", `${data.sections.length}`],
@@ -306,7 +349,8 @@ export async function buildActaInicio(
       ["Fecha de inicio planeada", fechaInicio],
       ["Fecha de cierre planeada", fechaFinPlaneada],
       ["Patrocinador (Sponsor)", sponsor || "[Por completar]"],
-      ["Gerente del proyecto", responsable],
+      ["Líder del proyecto", responsable],
+      [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
       ["Contacto técnico del cliente", contactoCliente || "[Por completar]"],
       ["Total de tareas planeadas", `${data.totals.tasks}`],
       ["Etapas / Secciones", `${data.sections.length}`],

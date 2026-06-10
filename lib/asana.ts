@@ -3,6 +3,7 @@ const ASANA_BASE = "https://app.asana.com/api/1.0";
 export interface AsanaUser {
   gid: string;
   name: string;
+  email?: string | null;
 }
 
 export interface AsanaSection {
@@ -164,6 +165,7 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
     "due_on",
     "notes",
     "assignee.name",
+    "assignee.email",
     "memberships.section.name",
     "memberships.section.gid",
   ].join(",");
@@ -173,7 +175,15 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
     token
   );
 
-  const subFields = ["name", "completed", "completed_at", "start_on", "due_on", "assignee.name"].join(",");
+  const subFields = [
+    "name",
+    "completed",
+    "completed_at",
+    "start_on",
+    "due_on",
+    "assignee.name",
+    "assignee.email",
+  ].join(",");
   await mapWithConcurrency(tasks, 8, async (t) => {
     try {
       const subs = await fetchAllPaginated<AsanaTask>(

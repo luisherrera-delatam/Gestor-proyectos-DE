@@ -41,6 +41,7 @@ import {
   spacer,
   txt,
 } from "./docx-chrome";
+import { PRODUCT_MANAGER_NAME, PRODUCT_MANAGER_ROLE } from "./team-roles";
 
 export { sanitizeFilename };
 
@@ -232,16 +233,26 @@ function buildFirmasTable(data: ProjectData, sponsor: string, contacto: string):
         children: [
           sign("Sponsor del Cliente", sponsor, "Sponsor del proyecto"),
           sign(
-            "Gerente del Proyecto · Data Express",
+            "Líder del Proyecto · Data Express",
             data.project.owner?.name || "Luis Herrera",
-            "Gerente del proyecto"
+            "Líder del proyecto"
           ),
         ],
       }),
       new TableRow({
         children: [
           sign("Contacto Técnico del Cliente", contacto, "Contacto técnico"),
+          sign(
+            `${PRODUCT_MANAGER_ROLE} · Data Express`,
+            PRODUCT_MANAGER_NAME,
+            PRODUCT_MANAGER_ROLE
+          ),
+        ],
+      }),
+      new TableRow({
+        children: [
           sign("Fecha de aceptación", fmtToday(), "—"),
+          sign("", "", ""),
         ],
       }),
     ],
@@ -266,7 +277,8 @@ export async function buildActaCierre(opts: BuildOptions): Promise<Buffer> {
     ["Nombre del proyecto", projectName],
     ["Fecha de inicio", fmtDate(project.start_on || project.created_at)],
     ["Fecha de cierre", fmtToday()],
-    ["Gerente del proyecto", project.owner?.name || "—"],
+    ["Líder del proyecto", project.owner?.name || "—"],
+    [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
     ["Sponsor", sponsor || "[Por completar]"],
     [
       "Avance al cierre",
@@ -302,7 +314,8 @@ export async function buildActaCierre(opts: BuildOptions): Promise<Buffer> {
       ["Fecha de inicio planeada", fmtDate(project.start_on)],
       ["Fecha de cierre planeada", fmtDate(project.due_on)],
       ["Fecha de cierre real", fmtToday()],
-      ["Gerente del proyecto", project.owner?.name || "—"],
+      ["Líder del proyecto", project.owner?.name || "—"],
+      [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
       ["Sponsor (Patrocinador)", sponsor || "[Por completar]"],
       ["Contacto técnico del cliente", contactoCliente || "[Por completar]"],
     ]),
