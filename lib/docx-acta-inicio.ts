@@ -49,8 +49,8 @@ import {
   txt,
 } from "./docx-chrome";
 import {
-  PRODUCT_MANAGER_NAME,
-  PRODUCT_MANAGER_ROLE,
+  PROJECT_MANAGER_NAME,
+  PROJECT_MANAGER_ROLE,
   getRoleForEmail,
 } from "./team-roles";
 
@@ -159,14 +159,14 @@ function buildStakeholdersTable(data: ProjectData, sponsor: string, contacto: st
   const rows: [string, string, string][] = [
     ["Patrocinador (Sponsor)", sponsor || "[Por completar]", "Cliente"],
     ["Líder del proyecto", ownerName, ownerRole],
-    [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME, PRODUCT_MANAGER_ROLE],
+    [PROJECT_MANAGER_ROLE, PROJECT_MANAGER_NAME, PROJECT_MANAGER_ROLE],
     ["Contacto técnico del cliente", contacto || "[Por completar]", "Cliente"],
   ];
 
   for (const a of assignees) {
     // Evitar duplicar al líder del proyecto y al PM si aparecen como assignees.
     if (a.name === ownerName) continue;
-    if (a.name === PRODUCT_MANAGER_NAME) continue;
+    if (a.name === PROJECT_MANAGER_NAME) continue;
     rows.push(["Miembro del equipo", a.name, a.role]);
   }
 
@@ -266,9 +266,9 @@ function buildFirmasTable(data: ProjectData, sponsor: string): Table {
         children: [
           sign("Contacto del Cliente", "", "Contacto técnico"),
           sign(
-            `${PRODUCT_MANAGER_ROLE} · Data Express`,
-            PRODUCT_MANAGER_NAME,
-            PRODUCT_MANAGER_ROLE
+            `${PROJECT_MANAGER_ROLE} · Data Express`,
+            PROJECT_MANAGER_NAME,
+            PROJECT_MANAGER_ROLE
           ),
         ],
       }),
@@ -300,7 +300,7 @@ export async function buildActaInicio(
     ["Fecha de inicio", fechaInicio],
     ["Fecha de cierre planeada", fechaFinPlaneada],
     ["Líder del proyecto", responsable],
-    [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
+    [PROJECT_MANAGER_ROLE, PROJECT_MANAGER_NAME],
     ["Sponsor", sponsor || "[Por completar]"],
     ["Total de tareas planeadas", `${data.totals.tasks}`],
     ["Total de etapas (secciones)", `${data.sections.length}`],
@@ -350,7 +350,7 @@ export async function buildActaInicio(
       ["Fecha de cierre planeada", fechaFinPlaneada],
       ["Patrocinador (Sponsor)", sponsor || "[Por completar]"],
       ["Líder del proyecto", responsable],
-      [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
+      [PROJECT_MANAGER_ROLE, PROJECT_MANAGER_NAME],
       ["Contacto técnico del cliente", contactoCliente || "[Por completar]"],
       ["Total de tareas planeadas", `${data.totals.tasks}`],
       ["Etapas / Secciones", `${data.sections.length}`],

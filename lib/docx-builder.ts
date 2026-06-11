@@ -41,7 +41,7 @@ import {
   spacer,
   txt,
 } from "./docx-chrome";
-import { PRODUCT_MANAGER_NAME, PRODUCT_MANAGER_ROLE } from "./team-roles";
+import { PROJECT_MANAGER_NAME, PROJECT_MANAGER_ROLE } from "./team-roles";
 
 export { sanitizeFilename };
 
@@ -243,9 +243,9 @@ function buildFirmasTable(data: ProjectData, sponsor: string, contacto: string):
         children: [
           sign("Contacto Técnico del Cliente", contacto, "Contacto técnico"),
           sign(
-            `${PRODUCT_MANAGER_ROLE} · Data Express`,
-            PRODUCT_MANAGER_NAME,
-            PRODUCT_MANAGER_ROLE
+            `${PROJECT_MANAGER_ROLE} · Data Express`,
+            PROJECT_MANAGER_NAME,
+            PROJECT_MANAGER_ROLE
           ),
         ],
       }),
@@ -278,7 +278,7 @@ export async function buildActaCierre(opts: BuildOptions): Promise<Buffer> {
     ["Fecha de inicio", fmtDate(project.start_on || project.created_at)],
     ["Fecha de cierre", fmtToday()],
     ["Líder del proyecto", project.owner?.name || "—"],
-    [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
+    [PROJECT_MANAGER_ROLE, PROJECT_MANAGER_NAME],
     ["Sponsor", sponsor || "[Por completar]"],
     [
       "Avance al cierre",
@@ -315,7 +315,7 @@ export async function buildActaCierre(opts: BuildOptions): Promise<Buffer> {
       ["Fecha de cierre planeada", fmtDate(project.due_on)],
       ["Fecha de cierre real", fmtToday()],
       ["Líder del proyecto", project.owner?.name || "—"],
-      [PRODUCT_MANAGER_ROLE, PRODUCT_MANAGER_NAME],
+      [PROJECT_MANAGER_ROLE, PROJECT_MANAGER_NAME],
       ["Sponsor (Patrocinador)", sponsor || "[Por completar]"],
       ["Contacto técnico del cliente", contactoCliente || "[Por completar]"],
     ]),
