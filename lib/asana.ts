@@ -36,6 +36,22 @@ export interface AsanaProject {
   modified_at: string | null;
 }
 
+export interface AsanaWorkspace {
+  gid: string;
+  name: string;
+}
+
+export interface AsanaProjectListItem {
+  gid: string;
+  name: string;
+}
+
+export interface WorkspaceProjects {
+  gid: string;
+  name: string;
+  projects: AsanaProjectListItem[];
+}
+
 export interface SectionGroup {
   name: string;
   tasks: AsanaTask[];
@@ -52,6 +68,16 @@ export interface ProjectData {
     subtasks: number;
     subtasksCompleted: number;
   };
+}
+
+/** Resuelve el gid del proyecto desde un gid directo o desde una URL de Asana. */
+export function resolveProjectGid(input: {
+  projectGid?: string | null;
+  projectUrl?: string | null;
+}): string | null {
+  const direct = (input.projectGid || "").trim();
+  if (direct) return direct;
+  return extractProjectGid(input.projectUrl || "");
 }
 
 export function extractProjectGid(input: string): string | null {
@@ -240,4 +266,36 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
       subtasksCompleted: subCompleted,
     },
   };
+}
+
+/** Usuario autenticado (para mostrar "Conectado como ..."). */
+export async function fetchCurrentUser(token: string): Promise<AsanaUser> {
+  const res: { data: AsanaUser } = await asanaFetch("/users/me?opt_fields=name,email", token);
+  return res.data;
+}
+
+/** Workspaces a los que el usuario tiene acceso. */
+export async function fetchWorkspaces(token: string): Promise<AsanaWorkspace[]> {
+  return fetchAllPaginated<AsanaWorkspace>("/workspaces?opt_fields=name", token);
+}
+
+/** Proyectos activos (no archivados) de un workspace. */
+export async function fetchProjectsForWorkspace(
+  token: string,
+  workspaceGid: string
+): Promise<AsanaProjectListItem[]> {
+  return fetchAllPaginated<AsanaProjectListItem>(
+    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name`,
+    token
+  );
+}
+
+/** Lista todos los proyectos del usuario, agrupados por workspace. */
+export async function fetchAllProjects(token: string): Promise<WorkspaceProjects[]> {
+  const workspaces = await fetchWorkspaces(token);
+  const result = await mapWithConcurrency(workspaces, 4, async (ws) => {
+    const projects = await fetchProjectsForWorkspace(token, ws.gid);
+    return { gid: ws.gid, name: ws.name, projects };
+  });
+  return result.filter((w) => w.projects.length > 0);
 }

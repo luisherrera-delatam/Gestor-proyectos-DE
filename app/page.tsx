@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ProjectSummary } from "@/lib/project-summary";
 
 type Action = "inicio" | "acta" | "gantt";
+
+interface AuthStatus {
+  configured: boolean;
+  connected: boolean;
+  userName?: string | null;
+}
+
+interface WorkspaceProjects {
+  gid: string;
+  name: string;
+  projects: { gid: string; name: string }[];
+}
 
 const TOKEN_STORAGE_KEY = "asanaweb.asana_token.v1";
 const THEME_STORAGE_KEY = "asanaweb.theme.v1";
@@ -76,6 +88,9 @@ function Spinner({ className }: { className?: string }) {
   );
 }
 
+const inputClass =
+  "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
+
 export default function Home() {
   const [token, setToken] = useState("");
   const [projectUrl, setProjectUrl] = useState("");
@@ -89,10 +104,53 @@ export default function Home() {
   const [preview, setPreview] = useState<ProjectSummary | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  // Auth / proyectos
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [showManualToken, setShowManualToken] = useState(false);
+  const [showManualUrl, setShowManualUrl] = useState(false);
+  const [workspaces, setWorkspaces] = useState<WorkspaceProjects[] | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [selectedProjectGid, setSelectedProjectGid] = useState("");
+
+  const connected = authStatus?.connected === true;
+  const oauthConfigured = authStatus?.configured === true;
+
   // Sync the toggle with the class applied by the anti-flash script in layout.tsx.
   useEffect(() => {
     setDarkMode(document.documentElement.classList.contains("dark"));
   }, []);
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/status", { cache: "no-store" });
+      const data = (await res.json()) as AuthStatus;
+      setAuthStatus(data);
+    } catch {
+      setAuthStatus({ configured: false, connected: false });
+    }
+  }, []);
+
+  // On mount: read the OAuth callback result, restore token, fetch auth status.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const auth = params.get("auth");
+    if (auth === "error") {
+      setError("No se pudo conectar con Asana. Inténtalo de nuevo.");
+    }
+    if (auth) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    try {
+      const saved = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (saved) {
+        setToken(saved);
+        setTokenRemembered(true);
+      }
+    } catch {
+      // localStorage might be unavailable — ignore.
+    }
+    refreshStatus();
+  }, [refreshStatus]);
 
   function toggleTheme() {
     const next = !darkMode;
@@ -104,19 +162,6 @@ export default function Home() {
     }
     setDarkMode(next);
   }
-
-  // Restore the saved token on mount.
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-      if (saved) {
-        setToken(saved);
-        setTokenRemembered(true);
-      }
-    } catch {
-      // localStorage might be unavailable (private mode, blocked) — ignore.
-    }
-  }, []);
 
   function rememberToken(value: string) {
     try {
@@ -135,30 +180,103 @@ export default function Home() {
     }
     setToken("");
     setTokenRemembered(false);
+    setWorkspaces(null);
+    setSelectedProjectGid("");
+    setPreview(null);
+  }
+
+  async function disconnect() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    setWorkspaces(null);
+    setSelectedProjectGid("");
+    setPreview(null);
+    await refreshStatus();
+  }
+
+  const hasAuth = connected || token.trim().length > 0;
+
+  // Token solo se envía en modo manual (cuando no hay sesión OAuth).
+  function buildPayload(extra: Record<string, string> = {}): Record<string, string> {
+    const payload: Record<string, string> = { ...extra };
+    if (!connected && token.trim()) payload.token = token.trim();
+    if (selectedProjectGid) payload.projectGid = selectedProjectGid;
+    else if (projectUrl.trim()) payload.projectUrl = projectUrl.trim();
+    return payload;
+  }
+
+  async function loadProjects() {
+    setError(null);
+    setProjectsLoading(true);
+    try {
+      const body: Record<string, string> = {};
+      if (!connected && token.trim()) body.token = token.trim();
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+      const data = (await res.json()) as { workspaces: WorkspaceProjects[] };
+      setWorkspaces(data.workspaces);
+      if (!connected && token.trim()) rememberToken(token.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setProjectsLoading(false);
+    }
+  }
+
+  async function loadPreview() {
+    setError(null);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch("/api/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+      const data = (await res.json()) as { summary: ProjectSummary };
+      setPreview(data.summary);
+      if (!connected && token.trim()) rememberToken(token.trim());
+    } catch (err) {
+      setPreview(null);
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   async function generate(action: Action) {
     setError(null);
     setLoadingAction(action);
     try {
-      let endpoint = "";
-      let payload: Record<string, string> = { token, projectUrl };
-      let fallback = "documento.docx";
-
+      let endpoint = "/api/generate";
+      let fallback = "Acta_Cierre.docx";
+      let extra: Record<string, string> = {};
       switch (action) {
         case "inicio":
           endpoint = "/api/generate-inicio";
-          payload = { token, projectUrl, sponsor, contactoCliente };
           fallback = "Acta_Inicio.docx";
+          extra = { sponsor, contactoCliente };
           break;
         case "acta":
           endpoint = "/api/generate";
-          payload = { token, projectUrl, sponsor, contactoCliente, lecciones };
           fallback = "Acta_Cierre.docx";
+          extra = { sponsor, contactoCliente, lecciones };
           break;
         case "gantt":
           endpoint = "/api/gantt";
-          payload = { token, projectUrl };
           fallback = "Gantt.pdf";
           break;
       }
@@ -166,13 +284,11 @@ export default function Home() {
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildPayload(extra)),
       });
 
       if (!res.ok) {
-        const data = await res
-          .json()
-          .catch(() => ({ error: `HTTP ${res.status}` }));
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(data.error || `Error ${res.status}`);
       }
 
@@ -190,8 +306,7 @@ export default function Home() {
       a.remove();
       URL.revokeObjectURL(url);
 
-      // Save the token only after a successful request (so we don't persist invalid tokens).
-      rememberToken(token.trim());
+      if (!connected && token.trim()) rememberToken(token.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -199,37 +314,21 @@ export default function Home() {
     }
   }
 
-  async function loadPreview() {
-    setError(null);
-    setPreviewLoading(true);
-    try {
-      const res = await fetch("/api/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, projectUrl }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(data.error || `Error ${res.status}`);
-      }
-      const data = (await res.json()) as { summary: ProjectSummary };
-      setPreview(data.summary);
-      rememberToken(token.trim());
-    } catch (err) {
-      setPreview(null);
-      setError(err instanceof Error ? err.message : "Error desconocido");
-    } finally {
-      setPreviewLoading(false);
-    }
-  }
-
-  // Si cambian el token o la URL, la vista previa cargada deja de ser válida.
+  // Cambios en credenciales o proyecto invalidan la vista previa cargada.
   function onTokenChange(value: string) {
     setToken(value);
+    setWorkspaces(null);
+    setSelectedProjectGid("");
     if (preview) setPreview(null);
   }
   function onProjectUrlChange(value: string) {
     setProjectUrl(value);
+    if (value) setSelectedProjectGid("");
+    if (preview) setPreview(null);
+  }
+  function onProjectSelect(gid: string) {
+    setSelectedProjectGid(gid);
+    if (gid) setProjectUrl("");
     if (preview) setPreview(null);
   }
 
@@ -238,8 +337,9 @@ export default function Home() {
     generate("inicio");
   }
 
-  const formValid = token.trim().length > 0 && projectUrl.trim().length > 0;
-  const busy = loadingAction !== null || previewLoading;
+  const projectChosen = selectedProjectGid.trim().length > 0 || projectUrl.trim().length > 0;
+  const formValid = hasAuth && projectChosen;
+  const busy = loadingAction !== null || previewLoading || projectsLoading;
 
   return (
     <main className="min-h-screen flex items-start justify-center py-12 px-4">
@@ -252,10 +352,8 @@ export default function Home() {
               alt="Data Express"
               className="h-12 w-12 object-contain"
               onError={(e) => {
-                // Fallback to a styled box if the logo PNG isn't present yet.
                 e.currentTarget.style.display = "none";
-                const placeholder = e.currentTarget
-                  .nextElementSibling as HTMLElement | null;
+                const placeholder = e.currentTarget.nextElementSibling as HTMLElement | null;
                 if (placeholder) placeholder.style.display = "flex";
               }}
             />
@@ -283,9 +381,9 @@ export default function Home() {
             </button>
           </div>
           <p className="text-sm text-dxgray dark:text-gray-400 ml-15 pl-1">
-            Extrae datos de un proyecto de Asana y genera el Acta de Inicio,
-            el Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el
-            mismo formato corporativo.
+            Conéctate con Asana, elige un proyecto y genera el Acta de Inicio, el
+            Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el formato
+            corporativo.
           </p>
         </header>
 
@@ -293,72 +391,160 @@ export default function Home() {
           onSubmit={handleSubmit}
           className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm space-y-5 fade-up fade-up-1"
         >
+          {/* ===== Conexión con Asana ===== */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-dxnavy dark:text-gray-200">
-                Personal Access Token de Asana{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              {tokenRemembered && (
+            <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
+              Conexión con Asana
+            </p>
+
+            {connected ? (
+              <div className="flex items-center justify-between rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 px-3 py-2">
+                <span className="text-sm text-green-800 dark:text-green-300 flex items-center gap-2">
+                  <span className="inline-block h-2 w-2 rounded-full bg-green-600" />
+                  Conectado{authStatus?.userName ? ` como ${authStatus.userName}` : ""}
+                </span>
                 <button
                   type="button"
-                  onClick={forgetToken}
+                  onClick={disconnect}
                   className="text-xs text-dxgray dark:text-gray-400 hover:text-red-600 underline"
                 >
-                  Olvidar token
+                  Desconectar
                 </button>
-              )}
-            </div>
-            <input
-              type="password"
-              required
-              value={token}
-              onChange={(e) => onTokenChange(e.target.value)}
-              placeholder="1/1234567890:abcdef..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
-              autoComplete="off"
-            />
-            {tokenRemembered ? (
-              <p className="text-xs text-green-700 dark:text-green-400 mt-1 flex items-center gap-1">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" />
-                Token recordado en este navegador. Click en &ldquo;Olvidar
-                token&rdquo; para borrarlo.
-              </p>
+              </div>
             ) : (
-              <p className="text-xs text-dxgray dark:text-gray-400 mt-1">
-                Genera uno en{" "}
-                <a
-                  href="https://app.asana.com/0/my-apps"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-dxnavy underline"
-                >
-                  app.asana.com/0/my-apps
-                </a>
-                . Se guarda solo en este navegador después de la primera
-                generación exitosa.
-              </p>
+              <div className="space-y-2">
+                {oauthConfigured && (
+                  <a
+                    href="/api/auth/login"
+                    className="block w-full text-center bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition"
+                  >
+                    Conectar con Asana
+                  </a>
+                )}
+
+                {(!oauthConfigured || showManualToken) && (
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-dxnavy dark:text-gray-200">
+                        Personal Access Token de Asana{" "}
+                        {!oauthConfigured && <span className="text-red-500">*</span>}
+                      </label>
+                      {tokenRemembered && (
+                        <button
+                          type="button"
+                          onClick={forgetToken}
+                          className="text-xs text-dxgray dark:text-gray-400 hover:text-red-600 underline"
+                        >
+                          Olvidar token
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="password"
+                      value={token}
+                      onChange={(e) => onTokenChange(e.target.value)}
+                      placeholder="1/1234567890:abcdef..."
+                      className={inputClass}
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-dxgray dark:text-gray-400 mt-1">
+                      Genera uno en{" "}
+                      <a
+                        href="https://app.asana.com/0/my-apps"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-dxnavy dark:text-dxblue underline"
+                      >
+                        app.asana.com/0/my-apps
+                      </a>
+                      . Se guarda solo en este navegador.
+                    </p>
+                  </div>
+                )}
+
+                {oauthConfigured && (
+                  <button
+                    type="button"
+                    onClick={() => setShowManualToken((v) => !v)}
+                    className="text-xs text-dxgray dark:text-gray-400 hover:text-dxnavy dark:hover:text-dxblue underline"
+                  >
+                    {showManualToken ? "Ocultar token manual" : "o usar un token manual"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
-              URL del proyecto de Asana <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="url"
-              required
-              value={projectUrl}
-              onChange={(e) => onProjectUrlChange(e.target.value)}
-              placeholder="https://app.asana.com/0/1234567890123456/list"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
-            />
-            <p className="text-xs text-dxgray dark:text-gray-400 mt-1">
-              Abre el proyecto en Asana y copia la URL completa de la barra de
-              direcciones.
-            </p>
+          {/* ===== Proyecto ===== */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
+                Proyecto
+              </p>
+              <button
+                type="button"
+                onClick={loadProjects}
+                disabled={busy || !hasAuth}
+                className="text-xs flex items-center gap-1 text-dxnavy dark:text-dxblue hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+              >
+                {projectsLoading && <Spinner className="h-3 w-3 animate-spin" />}
+                {workspaces ? "Actualizar lista" : "Cargar mis proyectos"}
+              </button>
+            </div>
+
+            {!hasAuth && (
+              <p className="text-xs text-dxgray dark:text-gray-400">
+                Conéctate con Asana o ingresa un token para ver tus proyectos.
+              </p>
+            )}
+
+            {hasAuth && !workspaces && !projectsLoading && (
+              <p className="text-xs text-dxgray dark:text-gray-400">
+                Pulsa &ldquo;Cargar mis proyectos&rdquo; para elegir uno de la lista.
+              </p>
+            )}
+
+            {workspaces && (
+              <select
+                value={selectedProjectGid}
+                onChange={(e) => onProjectSelect(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">— Selecciona un proyecto —</option>
+                {workspaces.map((ws) => (
+                  <optgroup key={ws.gid} label={ws.name}>
+                    {ws.projects.map((p) => (
+                      <option key={p.gid} value={p.gid}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowManualUrl((v) => !v)}
+              className="mt-2 text-xs text-dxgray dark:text-gray-400 hover:text-dxnavy dark:hover:text-dxblue underline"
+            >
+              {showManualUrl ? "Ocultar URL manual" : "o pega la URL del proyecto"}
+            </button>
+
+            {showManualUrl && (
+              <div className="mt-2">
+                <input
+                  type="url"
+                  value={projectUrl}
+                  onChange={(e) => onProjectUrlChange(e.target.value)}
+                  placeholder="https://app.asana.com/0/1234567890123456/list"
+                  className={inputClass}
+                />
+              </div>
+            )}
           </div>
 
+          {/* ===== Vista previa ===== */}
           <div>
             <button
               type="button"
@@ -398,7 +584,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Barra de progreso */}
                 <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mb-3">
                   <div
                     className="h-full rounded-full bg-dxnavy dark:bg-dxblue transition-all"
@@ -484,6 +669,7 @@ export default function Home() {
             )}
           </div>
 
+          {/* ===== Datos de las actas ===== */}
           <fieldset className="border-t border-gray-200 dark:border-gray-700 pt-4">
             <legend className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 pr-2">
               Datos del Acta (Inicio y Cierre)
@@ -499,7 +685,7 @@ export default function Home() {
                   value={sponsor}
                   onChange={(e) => setSponsor(e.target.value)}
                   placeholder="Opcional"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
+                  className={inputClass}
                 />
               </div>
               <div>
@@ -511,7 +697,7 @@ export default function Home() {
                   value={contactoCliente}
                   onChange={(e) => setContactoCliente(e.target.value)}
                   placeholder="Opcional"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
+                  className={inputClass}
                 />
               </div>
             </div>
@@ -528,7 +714,7 @@ export default function Home() {
                 onChange={(e) => setLecciones(e.target.value)}
                 placeholder="Describe lo aprendido durante la ejecución del proyecto..."
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
+                className={inputClass}
               />
             </div>
           </fieldset>
@@ -545,9 +731,7 @@ export default function Home() {
               disabled={busy || !formValid}
               className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loadingAction === "inicio"
-                ? "Generando..."
-                : "Acta de Inicio (Word)"}
+              {loadingAction === "inicio" ? "Generando..." : "Acta de Inicio (Word)"}
             </button>
 
             <button
@@ -556,9 +740,7 @@ export default function Home() {
               disabled={busy || !formValid}
               className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loadingAction === "acta"
-                ? "Generando..."
-                : "Acta de Cierre (Word)"}
+              {loadingAction === "acta" ? "Generando..." : "Acta de Cierre (Word)"}
             </button>
 
             <button
@@ -567,9 +749,7 @@ export default function Home() {
               disabled={busy || !formValid}
               className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loadingAction === "gantt"
-                ? "Generando..."
-                : "Gantt (PDF)"}
+              {loadingAction === "gantt" ? "Generando..." : "Gantt (PDF)"}
             </button>
           </div>
         </form>

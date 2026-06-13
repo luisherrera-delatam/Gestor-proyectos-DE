@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractProjectGid, fetchProjectData } from "@/lib/asana";
+import { fetchProjectData, resolveProjectGid } from "@/lib/asana";
+import { AuthError, applyRefreshedCookie, resolveAuth } from "@/lib/asana-auth";
 import { buildActaInicio, sanitizeFilename } from "@/lib/docx-acta-inicio";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ export async function POST(req: NextRequest) {
   let body: {
     token?: string;
     projectUrl?: string;
+    projectGid?: string;
     sponsor?: string;
     contactoCliente?: string;
   };
@@ -19,34 +21,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cuerpo de la petición inválido." }, { status: 400 });
   }
 
-  const token = (body.token || "").trim();
-  const projectUrl = (body.projectUrl || "").trim();
   const sponsor = (body.sponsor || "").trim();
   const contactoCliente = (body.contactoCliente || "").trim();
 
-  if (!token) {
-    return NextResponse.json({ error: "Falta el Personal Access Token de Asana." }, { status: 400 });
-  }
-  if (!projectUrl) {
-    return NextResponse.json({ error: "Falta la URL del proyecto." }, { status: 400 });
+  let auth;
+  try {
+    auth = await resolveAuth(req, body.token);
+  } catch (err) {
+    const message = err instanceof AuthError ? err.message : "No autorizado.";
+    return NextResponse.json({ error: message }, { status: 401 });
   }
 
-  const projectGid = extractProjectGid(projectUrl);
+  const projectGid = resolveProjectGid(body);
   if (!projectGid) {
     return NextResponse.json(
-      { error: "No se pudo extraer el ID del proyecto de la URL. Verifica el enlace." },
+      { error: "Falta el proyecto. Selecciona uno de la lista o pega su URL." },
       { status: 400 }
     );
   }
 
   try {
-    const data = await fetchProjectData(projectGid, token);
+    const data = await fetchProjectData(projectGid, auth.token);
     const buffer = await buildActaInicio({ data, sponsor, contactoCliente });
 
     const filename = `Acta_Inicio_${sanitizeFilename(data.project.name)}.docx`;
     const out = new Uint8Array(buffer);
 
-    return new NextResponse(out, {
+    const res = new NextResponse(out, {
       status: 200,
       headers: {
         "Content-Type":
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
         "Content-Length": String(out.byteLength),
       },
     });
+    return applyRefreshedCookie(res, auth);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error generando el documento.";
     return NextResponse.json({ error: message }, { status: 500 });

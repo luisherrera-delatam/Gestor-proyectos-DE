@@ -21,6 +21,34 @@ pnpm install
 pnpm dev
 ```
 
+## Conexión con Asana (OAuth)
+
+La app puede conectarse a Asana de dos formas:
+
+- **OAuth** (recomendado): el usuario pulsa "Conectar con Asana", autoriza y
+  ve la lista de sus proyectos sin pegar tokens ni URLs.
+- **Token manual** (alternativa): si OAuth no está configurado, se usa el
+  Personal Access Token que el usuario pega en la interfaz. Siempre disponible.
+
+### Configurar OAuth (una sola vez)
+
+1. Ve a https://app.asana.com/0/my-apps → **Create new app**.
+2. En la pestaña **OAuth**, agrega las **Redirect URLs**:
+   - `http://localhost:3000/api/auth/callback` (desarrollo)
+   - `https://TU-DOMINIO.vercel.app/api/auth/callback` (producción)
+3. Copia el **Client ID** y el **Client Secret**.
+4. Crea un `.env.local` (local) y agrega las mismas variables en Vercel
+   (**Settings → Environment Variables**):
+
+   ```
+   ASANA_CLIENT_ID=...
+   ASANA_CLIENT_SECRET=...
+   SESSION_SECRET=...   # node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+Sin estas variables la app arranca igual y muestra el campo de token manual.
+Ver `.env.example`.
+
 ## Setup CD (una sola vez)
 
 ### 1. Crea el proyecto en Vercel
