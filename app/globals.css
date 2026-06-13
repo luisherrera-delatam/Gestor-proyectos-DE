@@ -4,3 +4,4 @@
 
 html, body { height: 100%; }
 body { background: #f7f9fc; color: #1a2233; }
+.dark body { background: #1b1f26; color: #e5e9f0; }

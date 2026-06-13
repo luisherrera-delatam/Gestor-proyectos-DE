@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 type Action = "inicio" | "acta" | "gantt";
 
 const TOKEN_STORAGE_KEY = "asanaweb.asana_token.v1";
+const THEME_STORAGE_KEY = "asanaweb.theme.v1";
 
 export default function Home() {
   const [token, setToken] = useState("");
@@ -15,6 +16,23 @@ export default function Home() {
   const [loadingAction, setLoadingAction] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tokenRemembered, setTokenRemembered] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Sync the toggle with the class applied by the anti-flash script in layout.tsx.
+  useEffect(() => {
+    setDarkMode(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  function toggleTheme() {
+    const next = !darkMode;
+    document.documentElement.classList.toggle("dark", next);
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, next ? "dark" : "light");
+    } catch {
+      // ignore storage failures
+    }
+    setDarkMode(next);
+  }
 
   // Restore the saved token on mount.
   useEffect(() => {
@@ -142,15 +160,23 @@ export default function Home() {
               DX
             </div>
             <div>
-              <p className="text-xs uppercase tracking-widest text-dxgray">
+              <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
                 Data Express
               </p>
-              <h1 className="text-xl font-semibold text-dxnavy leading-tight">
+              <h1 className="text-xl font-semibold text-dxnavy dark:text-gray-100 leading-tight">
                 Generador de documentos del proyecto
               </h1>
             </div>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo noche"}
+              className="ml-auto h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-base flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition"
+            >
+              {darkMode ? "☀️" : "🌙"}
+            </button>
           </div>
-          <p className="text-sm text-dxgray ml-15 pl-1">
+          <p className="text-sm text-dxgray dark:text-gray-400 ml-15 pl-1">
             Extrae datos de un proyecto de Asana y genera el Acta de Inicio,
             el Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el
             mismo formato corporativo.
@@ -159,11 +185,11 @@ export default function Home() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5"
+          className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm space-y-5"
         >
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-dxnavy">
+              <label className="block text-sm font-medium text-dxnavy dark:text-gray-200">
                 Personal Access Token de Asana{" "}
                 <span className="text-red-500">*</span>
               </label>
@@ -171,7 +197,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={forgetToken}
-                  className="text-xs text-dxgray hover:text-red-600 underline"
+                  className="text-xs text-dxgray dark:text-gray-400 hover:text-red-600 underline"
                 >
                   Olvidar token
                 </button>
@@ -183,17 +209,17 @@ export default function Home() {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="1/1234567890:abcdef..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy focus:border-transparent text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
               autoComplete="off"
             />
             {tokenRemembered ? (
-              <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
+              <p className="text-xs text-green-700 dark:text-green-400 mt-1 flex items-center gap-1">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" />
                 Token recordado en este navegador. Click en &ldquo;Olvidar
                 token&rdquo; para borrarlo.
               </p>
             ) : (
-              <p className="text-xs text-dxgray mt-1">
+              <p className="text-xs text-dxgray dark:text-gray-400 mt-1">
                 Genera uno en{" "}
                 <a
                   href="https://app.asana.com/0/my-apps"
@@ -210,7 +236,7 @@ export default function Home() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-dxnavy mb-1">
+            <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
               URL del proyecto de Asana <span className="text-red-500">*</span>
             </label>
             <input
@@ -219,22 +245,22 @@ export default function Home() {
               value={projectUrl}
               onChange={(e) => setProjectUrl(e.target.value)}
               placeholder="https://app.asana.com/0/1234567890123456/list"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy focus:border-transparent text-sm"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
             />
-            <p className="text-xs text-dxgray mt-1">
+            <p className="text-xs text-dxgray dark:text-gray-400 mt-1">
               Abre el proyecto en Asana y copia la URL completa de la barra de
               direcciones.
             </p>
           </div>
 
-          <fieldset className="border-t border-gray-200 pt-4">
-            <legend className="text-xs uppercase tracking-widest text-dxgray pr-2">
+          <fieldset className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <legend className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 pr-2">
               Datos del Acta (Inicio y Cierre)
             </legend>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
               <div>
-                <label className="block text-sm font-medium text-dxnavy mb-1">
+                <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
                   Sponsor
                 </label>
                 <input
@@ -242,11 +268,11 @@ export default function Home() {
                   value={sponsor}
                   onChange={(e) => setSponsor(e.target.value)}
                   placeholder="Opcional"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dxnavy mb-1">
+                <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
                   Contacto del cliente
                 </label>
                 <input
@@ -254,15 +280,15 @@ export default function Home() {
                   value={contactoCliente}
                   onChange={(e) => setContactoCliente(e.target.value)}
                   placeholder="Opcional"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
                 />
               </div>
             </div>
 
             <div className="mt-4">
-              <label className="block text-sm font-medium text-dxnavy mb-1">
+              <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
                 Lecciones aprendidas{" "}
-                <span className="text-xs text-dxgray font-normal">
+                <span className="text-xs text-dxgray dark:text-gray-400 font-normal">
                   (solo Acta de Cierre)
                 </span>
               </label>
@@ -271,13 +297,13 @@ export default function Home() {
                 onChange={(e) => setLecciones(e.target.value)}
                 placeholder="Describe lo aprendido durante la ejecución del proyecto..."
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy focus:border-transparent text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
               />
             </div>
           </fieldset>
 
           {error && (
-            <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+            <div className="rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 px-3 py-2 text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
@@ -308,7 +334,7 @@ export default function Home() {
               type="button"
               onClick={() => generate("gantt")}
               disabled={loadingAction !== null || !formValid}
-              className="bg-white border border-dxnavy text-dxnavy font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loadingAction === "gantt"
                 ? "Generando..."
@@ -317,7 +343,7 @@ export default function Home() {
           </div>
         </form>
 
-        <footer className="mt-6 text-center text-xs text-dxgray">
+        <footer className="mt-6 text-center text-xs text-dxgray dark:text-gray-400">
           © Data Express · El token no se almacena ni se loguea en el servidor.
         </footer>
       </div>
