@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ProjectSummary } from "@/lib/project-summary";
 import ProjectPicker from "./ProjectPicker";
 
-type Action = "inicio" | "acta" | "gantt";
+type Action = "inicio" | "acta" | "gantt" | "zip";
 
 interface AuthStatus {
   configured: boolean;
@@ -25,6 +25,7 @@ const ACTION_LABELS: Record<Action, string> = {
   inicio: "Generando Acta de Inicio…",
   acta: "Generando Acta de Cierre…",
   gantt: "Generando Diagrama de Gantt…",
+  zip: "Generando los tres documentos…",
 };
 
 function fmtDate(iso: string | null): string {
@@ -317,6 +318,11 @@ export default function Home() {
         case "gantt":
           endpoint = "/api/gantt";
           fallback = "Gantt.pdf";
+          break;
+        case "zip":
+          endpoint = "/api/bundle";
+          fallback = "Proyecto.zip";
+          extra = { sponsor, contactoCliente, lecciones };
           break;
       }
 
@@ -808,6 +814,19 @@ export default function Home() {
                 {loadingAction === "gantt" ? "Generando..." : "Gantt (PDF)"}
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => generate("zip")}
+              disabled={busy || !formValid}
+              className="mt-3 w-full flex items-center justify-center gap-2 border border-dashed border-dxnavy/50 dark:border-dxblue/50 text-dxnavy dark:text-dxblue font-medium py-2 rounded-md hover:bg-dxnavy/5 dark:hover:bg-dxblue/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loadingAction === "zip" && <Spinner className="h-4 w-4 animate-spin" />}
+              {loadingAction === "zip"
+                ? "Generando ZIP…"
+                : "Descargar los 3 documentos (ZIP)"}
+            </button>
+
             {!formValid && (
               <p className="text-xs text-dxgray dark:text-gray-400 mt-2">
                 {hasAuth
