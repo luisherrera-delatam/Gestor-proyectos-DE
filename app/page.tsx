@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ProjectSummary } from "@/lib/project-summary";
+import ProjectPicker from "./ProjectPicker";
 
 type Action = "inicio" | "acta" | "gantt";
 
@@ -505,22 +506,12 @@ export default function Home() {
             )}
 
             {workspaces && (
-              <select
+              <ProjectPicker
+                workspaces={workspaces}
                 value={selectedProjectGid}
-                onChange={(e) => onProjectSelect(e.target.value)}
-                className={inputClass}
-              >
-                <option value="">— Selecciona un proyecto —</option>
-                {workspaces.map((ws) => (
-                  <optgroup key={ws.gid} label={ws.name}>
-                    {ws.projects.map((p) => (
-                      <option key={p.gid} value={p.gid}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+                onChange={onProjectSelect}
+                disabled={busy}
+              />
             )}
 
             <button
