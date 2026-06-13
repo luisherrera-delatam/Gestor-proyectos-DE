@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ProjectSummary } from "@/lib/project-summary";
 
 type Action = "inicio" | "acta" | "gantt";
 
@@ -12,6 +13,13 @@ const ACTION_LABELS: Record<Action, string> = {
   acta: "Generando Acta de Cierre…",
   gantt: "Generando Diagrama de Gantt…",
 };
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("es-PE", { year: "numeric", month: "long", day: "numeric" });
+}
 
 function SunIcon({ className }: { className?: string }) {
   return (
@@ -78,6 +86,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [tokenRemembered, setTokenRemembered] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [preview, setPreview] = useState<ProjectSummary | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Sync the toggle with the class applied by the anti-flash script in layout.tsx.
   useEffect(() => {
@@ -189,12 +199,47 @@ export default function Home() {
     }
   }
 
+  async function loadPreview() {
+    setError(null);
+    setPreviewLoading(true);
+    try {
+      const res = await fetch("/api/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, projectUrl }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+      const data = (await res.json()) as { summary: ProjectSummary };
+      setPreview(data.summary);
+      rememberToken(token.trim());
+    } catch (err) {
+      setPreview(null);
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  // Si cambian el token o la URL, la vista previa cargada deja de ser válida.
+  function onTokenChange(value: string) {
+    setToken(value);
+    if (preview) setPreview(null);
+  }
+  function onProjectUrlChange(value: string) {
+    setProjectUrl(value);
+    if (preview) setPreview(null);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     generate("inicio");
   }
 
   const formValid = token.trim().length > 0 && projectUrl.trim().length > 0;
+  const busy = loadingAction !== null || previewLoading;
 
   return (
     <main className="min-h-screen flex items-start justify-center py-12 px-4">
@@ -268,7 +313,7 @@ export default function Home() {
               type="password"
               required
               value={token}
-              onChange={(e) => setToken(e.target.value)}
+              onChange={(e) => onTokenChange(e.target.value)}
               placeholder="1/1234567890:abcdef..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
               autoComplete="off"
@@ -304,7 +349,7 @@ export default function Home() {
               type="url"
               required
               value={projectUrl}
-              onChange={(e) => setProjectUrl(e.target.value)}
+              onChange={(e) => onProjectUrlChange(e.target.value)}
               placeholder="https://app.asana.com/0/1234567890123456/list"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm"
             />
@@ -312,6 +357,131 @@ export default function Home() {
               Abre el proyecto en Asana y copia la URL completa de la barra de
               direcciones.
             </p>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={loadPreview}
+              disabled={busy || !formValid}
+              className="w-full flex items-center justify-center gap-2 border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2 rounded-md hover:bg-dxnavy/5 dark:hover:bg-dxblue/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {previewLoading && <Spinner className="h-4 w-4 animate-spin" />}
+              {previewLoading
+                ? "Cargando vista previa…"
+                : preview
+                  ? "Actualizar vista previa"
+                  : "Cargar vista previa del proyecto"}
+            </button>
+
+            {preview && (
+              <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#1c2027] p-4 fade-up">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400">
+                      Vista previa
+                    </p>
+                    <h2 className="text-base font-semibold text-dxnavy dark:text-gray-100 leading-snug">
+                      {preview.name}
+                    </h2>
+                    {preview.owner && (
+                      <p className="text-xs text-dxgray dark:text-gray-400 mt-0.5">
+                        Líder: {preview.owner}
+                      </p>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-2xl font-bold text-dxnavy dark:text-dxblue leading-none">
+                      {preview.pct}%
+                    </div>
+                    <div className="text-[11px] text-dxgray dark:text-gray-400">avance</div>
+                  </div>
+                </div>
+
+                {/* Barra de progreso */}
+                <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mb-3">
+                  <div
+                    className="h-full rounded-full bg-dxnavy dark:bg-dxblue transition-all"
+                    style={{ width: `${preview.pct}%` }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 text-center">
+                  <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
+                    <div className="text-lg font-semibold text-dxnavy dark:text-gray-100">
+                      {preview.totalTasks}
+                    </div>
+                    <div className="text-[11px] text-dxgray dark:text-gray-400">Tareas</div>
+                  </div>
+                  <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
+                    <div className="text-lg font-semibold text-green-700 dark:text-green-400">
+                      {preview.completedTasks}
+                    </div>
+                    <div className="text-[11px] text-dxgray dark:text-gray-400">Completadas</div>
+                  </div>
+                  <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
+                    <div className="text-lg font-semibold text-amber-600 dark:text-amber-400">
+                      {preview.pendingTasks}
+                    </div>
+                    <div className="text-[11px] text-dxgray dark:text-gray-400">Pendientes</div>
+                  </div>
+                  <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
+                    <div className="text-lg font-semibold text-dxnavy dark:text-gray-100">
+                      {preview.totalSubtasks}
+                    </div>
+                    <div className="text-[11px] text-dxgray dark:text-gray-400">Subtareas</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-3 text-xs">
+                  <div>
+                    <span className="text-dxgray dark:text-gray-400">Inicio: </span>
+                    <span className="text-dxnavy dark:text-gray-200 font-medium">
+                      {fmtDate(preview.startOn)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-dxgray dark:text-gray-400">Fin: </span>
+                    <span className="text-dxnavy dark:text-gray-200 font-medium">
+                      {fmtDate(preview.dueOn)}
+                    </span>
+                  </div>
+                </div>
+
+                {preview.sections.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400 mb-1">
+                      Secciones ({preview.sections.length})
+                    </p>
+                    <ul className="space-y-1">
+                      {preview.sections.map((s, i) => (
+                        <li
+                          key={i}
+                          className="flex items-center justify-between text-xs text-dxnavy dark:text-gray-200"
+                        >
+                          <span className="truncate pr-2">{s.name}</span>
+                          <span className="shrink-0 text-dxgray dark:text-gray-400">
+                            {s.completedCount}/{s.taskCount}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-dxgray dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2">
+                  En el Gantt aparecerán <strong>{preview.ganttRows}</strong> barras
+                  {preview.ganttSkipped > 0 && (
+                    <>
+                      ; <strong>{preview.ganttSkipped}</strong> tarea
+                      {preview.ganttSkipped === 1 ? "" : "s"} sin fecha se
+                      {preview.ganttSkipped === 1 ? " omitirá" : " omitirán"}
+                    </>
+                  )}
+                  .
+                </p>
+              </div>
+            )}
           </div>
 
           <fieldset className="border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -372,7 +542,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
             <button
               type="submit"
-              disabled={loadingAction !== null || !formValid}
+              disabled={busy || !formValid}
               className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loadingAction === "inicio"
@@ -383,7 +553,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => generate("acta")}
-              disabled={loadingAction !== null || !formValid}
+              disabled={busy || !formValid}
               className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loadingAction === "acta"
@@ -394,7 +564,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => generate("gantt")}
-              disabled={loadingAction !== null || !formValid}
+              disabled={busy || !formValid}
               className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loadingAction === "gantt"
