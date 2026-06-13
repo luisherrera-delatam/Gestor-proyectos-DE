@@ -89,6 +89,43 @@ function Spinner({ className }: { className?: string }) {
   );
 }
 
+function ChevronRightIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  );
+}
+
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
 
@@ -109,6 +146,7 @@ export default function Home() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [showManualToken, setShowManualToken] = useState(false);
   const [showManualUrl, setShowManualUrl] = useState(false);
+  const [showExtra, setShowExtra] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceProjects[] | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProjectGid, setSelectedProjectGid] = useState("");
@@ -338,6 +376,22 @@ export default function Home() {
     generate("inicio");
   }
 
+  // Auto-cargar la lista de proyectos en cuanto haya sesión OAuth.
+  useEffect(() => {
+    if (connected && !workspaces && !projectsLoading) {
+      loadProjects();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
+
+  // Auto-cargar la vista previa al elegir un proyecto de la lista.
+  useEffect(() => {
+    if (selectedProjectGid) {
+      loadPreview();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectGid]);
+
   const projectChosen = selectedProjectGid.trim().length > 0 || projectUrl.trim().length > 0;
   const formValid = hasAuth && projectChosen;
   const busy = loadingAction !== null || previewLoading || projectsLoading;
@@ -482,37 +536,36 @@ export default function Home() {
               <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
                 Proyecto
               </p>
-              <button
-                type="button"
-                onClick={loadProjects}
-                disabled={busy || !hasAuth}
-                className="text-xs flex items-center gap-1 text-dxnavy dark:text-dxblue hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-              >
-                {projectsLoading && <Spinner className="h-3 w-3 animate-spin" />}
-                {workspaces ? "Actualizar lista" : "Cargar mis proyectos"}
-              </button>
+              {hasAuth && (
+                <button
+                  type="button"
+                  onClick={loadProjects}
+                  disabled={busy}
+                  title="Actualizar lista de proyectos"
+                  className="text-dxgray dark:text-gray-400 hover:text-dxnavy dark:hover:text-dxblue disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <RefreshIcon className={`h-4 w-4 ${projectsLoading ? "animate-spin" : ""}`} />
+                </button>
+              )}
             </div>
 
-            {!hasAuth && (
+            {!hasAuth ? (
               <p className="text-xs text-dxgray dark:text-gray-400">
-                Conéctate con Asana o ingresa un token para ver tus proyectos.
+                Conéctate con Asana arriba para ver tus proyectos.
               </p>
-            )}
-
-            {hasAuth && !workspaces && !projectsLoading && (
-              <p className="text-xs text-dxgray dark:text-gray-400">
-                Pulsa &ldquo;Cargar mis proyectos&rdquo; para elegir uno de la lista.
-              </p>
-            )}
-
-            {workspaces && (
+            ) : projectsLoading && !workspaces ? (
+              <div className="flex items-center gap-2 text-sm text-dxgray dark:text-gray-400 py-2">
+                <Spinner className="h-4 w-4 animate-spin" />
+                Cargando tus proyectos…
+              </div>
+            ) : workspaces ? (
               <ProjectPicker
                 workspaces={workspaces}
                 value={selectedProjectGid}
                 onChange={onProjectSelect}
                 disabled={busy}
               />
-            )}
+            ) : null}
 
             <button
               type="button"
@@ -528,6 +581,7 @@ export default function Home() {
                   type="url"
                   value={projectUrl}
                   onChange={(e) => onProjectUrlChange(e.target.value)}
+                  onBlur={() => projectUrl.trim() && loadPreview()}
                   placeholder="https://app.asana.com/0/1234567890123456/list"
                   className={inputClass}
                 />
@@ -535,23 +589,17 @@ export default function Home() {
             )}
           </div>
 
-          {/* ===== Vista previa ===== */}
-          <div>
-            <button
-              type="button"
-              onClick={loadPreview}
-              disabled={busy || !formValid}
-              className="w-full flex items-center justify-center gap-2 border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2 rounded-md hover:bg-dxnavy/5 dark:hover:bg-dxblue/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {previewLoading && <Spinner className="h-4 w-4 animate-spin" />}
-              {previewLoading
-                ? "Cargando vista previa…"
-                : preview
-                  ? "Actualizar vista previa"
-                  : "Cargar vista previa del proyecto"}
-            </button>
+          {/* ===== Vista previa (se carga sola al elegir proyecto) ===== */}
+          {projectChosen && (
+            <div>
+              {previewLoading && !preview && (
+                <div className="flex items-center gap-2 text-sm text-dxgray dark:text-gray-400 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#1c2027] px-4 py-3">
+                  <Spinner className="h-4 w-4 animate-spin" />
+                  Cargando vista previa del proyecto…
+                </div>
+              )}
 
-            {preview && (
+              {preview && (
               <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#1c2027] p-4 fade-up">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
@@ -657,58 +705,70 @@ export default function Home() {
                   .
                 </p>
               </div>
+              )}
+            </div>
+          )}
+
+          {/* ===== Datos de las actas (colapsable) ===== */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowExtra((v) => !v)}
+              className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 hover:text-dxnavy dark:hover:text-dxblue transition"
+            >
+              <ChevronRightIcon
+                className={`h-3.5 w-3.5 transition-transform ${showExtra ? "rotate-90" : ""}`}
+              />
+              Datos para las actas (opcional)
+            </button>
+
+            {showExtra && (
+              <div className="mt-3 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
+                      Sponsor
+                    </label>
+                    <input
+                      type="text"
+                      value={sponsor}
+                      onChange={(e) => setSponsor(e.target.value)}
+                      placeholder="Opcional"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
+                      Contacto del cliente
+                    </label>
+                    <input
+                      type="text"
+                      value={contactoCliente}
+                      onChange={(e) => setContactoCliente(e.target.value)}
+                      placeholder="Opcional"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
+                    Lecciones aprendidas{" "}
+                    <span className="text-xs text-dxgray dark:text-gray-400 font-normal">
+                      (solo Acta de Cierre)
+                    </span>
+                  </label>
+                  <textarea
+                    value={lecciones}
+                    onChange={(e) => setLecciones(e.target.value)}
+                    placeholder="Describe lo aprendido durante la ejecución del proyecto..."
+                    rows={4}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
             )}
           </div>
-
-          {/* ===== Datos de las actas ===== */}
-          <fieldset className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <legend className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 pr-2">
-              Datos del Acta (Inicio y Cierre)
-            </legend>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-              <div>
-                <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
-                  Sponsor
-                </label>
-                <input
-                  type="text"
-                  value={sponsor}
-                  onChange={(e) => setSponsor(e.target.value)}
-                  placeholder="Opcional"
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
-                  Contacto del cliente
-                </label>
-                <input
-                  type="text"
-                  value={contactoCliente}
-                  onChange={(e) => setContactoCliente(e.target.value)}
-                  placeholder="Opcional"
-                  className={inputClass}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-dxnavy dark:text-gray-200 mb-1">
-                Lecciones aprendidas{" "}
-                <span className="text-xs text-dxgray dark:text-gray-400 font-normal">
-                  (solo Acta de Cierre)
-                </span>
-              </label>
-              <textarea
-                value={lecciones}
-                onChange={(e) => setLecciones(e.target.value)}
-                placeholder="Describe lo aprendido durante la ejecución del proyecto..."
-                rows={4}
-                className={inputClass}
-              />
-            </div>
-          </fieldset>
 
           {error && (
             <div className="rounded-md bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 px-3 py-2 text-sm text-red-700 dark:text-red-300">
@@ -716,32 +776,45 @@ export default function Home() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={busy || !formValid}
-              className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loadingAction === "inicio" ? "Generando..." : "Acta de Inicio (Word)"}
-            </button>
+          {/* ===== Generar documento ===== */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
+              Generar documento
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button
+                type="submit"
+                disabled={busy || !formValid}
+                className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loadingAction === "inicio" ? "Generando..." : "Acta de Inicio"}
+              </button>
 
-            <button
-              type="button"
-              onClick={() => generate("acta")}
-              disabled={busy || !formValid}
-              className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loadingAction === "acta" ? "Generando..." : "Acta de Cierre (Word)"}
-            </button>
+              <button
+                type="button"
+                onClick={() => generate("acta")}
+                disabled={busy || !formValid}
+                className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loadingAction === "acta" ? "Generando..." : "Acta de Cierre"}
+              </button>
 
-            <button
-              type="button"
-              onClick={() => generate("gantt")}
-              disabled={busy || !formValid}
-              className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loadingAction === "gantt" ? "Generando..." : "Gantt (PDF)"}
-            </button>
+              <button
+                type="button"
+                onClick={() => generate("gantt")}
+                disabled={busy || !formValid}
+                className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loadingAction === "gantt" ? "Generando..." : "Gantt (PDF)"}
+              </button>
+            </div>
+            {!formValid && (
+              <p className="text-xs text-dxgray dark:text-gray-400 mt-2">
+                {hasAuth
+                  ? "Elige un proyecto para habilitar la generación."
+                  : "Conéctate con Asana para empezar."}
+              </p>
+            )}
           </div>
         </form>
 
