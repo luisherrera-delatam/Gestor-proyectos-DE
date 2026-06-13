@@ -28,6 +28,13 @@ const ACTION_LABELS: Record<Action, string> = {
   zip: "Generando los tres documentos…",
 };
 
+const DONE_LABELS: Record<Action, string> = {
+  inicio: "Acta de Inicio descargada",
+  acta: "Acta de Cierre descargada",
+  gantt: "Diagrama de Gantt descargado",
+  zip: "Paquete ZIP descargado",
+};
+
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -127,6 +134,71 @@ function RefreshIcon({ className }: { className?: string }) {
   );
 }
 
+function StepNumber({ n }: { n: number }) {
+  return (
+    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-dxnavy dark:bg-dxblue text-white dark:text-gray-900 text-[11px] font-bold">
+      {n}
+    </span>
+  );
+}
+
+function DocIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M9 13h6M9 17h6" />
+    </svg>
+  );
+}
+
+function ChartIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 3v18h18" />
+      <rect x="7" y="11" width="3" height="6" rx="0.5" />
+      <rect x="12" y="7" width="3" height="10" rx="0.5" />
+      <rect x="17" y="13" width="3" height="4" rx="0.5" />
+    </svg>
+  );
+}
+
+function CheckCircleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <path d="m9 11 3 3L22 4" />
+    </svg>
+  );
+}
+
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
 
@@ -142,6 +214,7 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
   const [preview, setPreview] = useState<ProjectSummary | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Auth / proyectos
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
@@ -352,6 +425,7 @@ export default function Home() {
       URL.revokeObjectURL(url);
 
       if (!connected && token.trim()) rememberToken(token.trim());
+      setToast(DONE_LABELS[action]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -397,6 +471,13 @@ export default function Home() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectGid]);
+
+  // Auto-ocultar el toast de éxito.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const projectChosen = selectedProjectGid.trim().length > 0 || projectUrl.trim().length > 0;
   const formValid = hasAuth && projectChosen;
@@ -450,11 +531,12 @@ export default function Home() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm space-y-5 fade-up fade-up-1"
+          className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-5 fade-up fade-up-1"
         >
           {/* ===== Conexión con Asana ===== */}
           <div>
-            <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
+            <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
+              <StepNumber n={1} />
               Conexión con Asana
             </p>
 
@@ -539,7 +621,8 @@ export default function Home() {
           {/* ===== Proyecto ===== */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
+              <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
+                <StepNumber n={2} />
                 Proyecto
               </p>
               {hasAuth && (
@@ -784,15 +867,17 @@ export default function Home() {
 
           {/* ===== Generar documento ===== */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
+            <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
+              <StepNumber n={3} />
               Generar documento
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="submit"
                 disabled={busy || !formValid}
-                className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
+                <DocIcon className="h-4 w-4 shrink-0" />
                 {loadingAction === "inicio" ? "Generando..." : "Acta de Inicio"}
               </button>
 
@@ -800,8 +885,9 @@ export default function Home() {
                 type="button"
                 onClick={() => generate("acta")}
                 disabled={busy || !formValid}
-                className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
+                <DocIcon className="h-4 w-4 shrink-0" />
                 {loadingAction === "acta" ? "Generando..." : "Acta de Cierre"}
               </button>
 
@@ -809,8 +895,9 @@ export default function Home() {
                 type="button"
                 onClick={() => generate("gantt")}
                 disabled={busy || !formValid}
-                className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
+                <ChartIcon className="h-4 w-4 shrink-0" />
                 {loadingAction === "gantt" ? "Generando..." : "Gantt (PDF)"}
               </button>
             </div>
@@ -855,6 +942,17 @@ export default function Home() {
           <p className="text-xs text-dxgray dark:text-gray-400">
             Consultando Asana y armando el documento — esto puede tardar unos segundos.
           </p>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full bg-dxnavy dark:bg-dxblue text-white dark:text-gray-900 px-4 py-2 shadow-lg toast-in"
+          role="status"
+          aria-live="polite"
+        >
+          <CheckCircleIcon className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-medium">{toast}</span>
         </div>
       )}
     </main>

@@ -15,6 +15,13 @@ body { background: #f7f9fc; color: #1a2233; }
 .fade-up-1 { animation-delay: 0.12s; }
 .fade-up-2 { animation-delay: 0.24s; }
 
+@keyframes toast-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.toast-in { animation: toast-in 0.25s ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
-  .fade-up { animation: none; }
+  .fade-up,
+  .toast-in { animation: none; }
 }
