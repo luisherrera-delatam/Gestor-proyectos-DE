@@ -5,3 +5,16 @@
 html, body { height: 100%; }
 body { background: #f7f9fc; color: #1a2233; }
 .dark body { background: #1b1f26; color: #e5e9f0; }
+
+/* Animación de entrada al cargar la página */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 0.55s ease-out both; }
+.fade-up-1 { animation-delay: 0.12s; }
+.fade-up-2 { animation-delay: 0.24s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up { animation: none; }
+}

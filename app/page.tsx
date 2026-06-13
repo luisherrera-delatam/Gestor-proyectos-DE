@@ -7,6 +7,67 @@ type Action = "inicio" | "acta" | "gantt";
 const TOKEN_STORAGE_KEY = "asanaweb.asana_token.v1";
 const THEME_STORAGE_KEY = "asanaweb.theme.v1";
 
+const ACTION_LABELS: Record<Action, string> = {
+  inicio: "Generando Acta de Inicio…",
+  acta: "Generando Acta de Cierre…",
+  gantt: "Generando Diagrama de Gantt…",
+};
+
+function SunIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+function Spinner({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"
+      />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [token, setToken] = useState("");
   const [projectUrl, setProjectUrl] = useState("");
@@ -138,7 +199,7 @@ export default function Home() {
   return (
     <main className="min-h-screen flex items-start justify-center py-12 px-4">
       <div className="w-full max-w-2xl">
-        <header className="mb-8">
+        <header className="mb-8 fade-up">
           <div className="flex items-center gap-3 mb-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -171,9 +232,9 @@ export default function Home() {
               type="button"
               onClick={toggleTheme}
               title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo noche"}
-              className="ml-auto h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-base flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition"
+              className="ml-auto h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-dxnavy dark:text-gray-200 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition"
             >
-              {darkMode ? "☀️" : "🌙"}
+              {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
           </div>
           <p className="text-sm text-dxgray dark:text-gray-400 ml-15 pl-1">
@@ -185,7 +246,7 @@ export default function Home() {
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm space-y-5"
+          className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-sm space-y-5 fade-up fade-up-1"
         >
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -343,10 +404,26 @@ export default function Home() {
           </div>
         </form>
 
-        <footer className="mt-6 text-center text-xs text-dxgray dark:text-gray-400">
+        <footer className="mt-6 text-center text-xs text-dxgray dark:text-gray-400 fade-up fade-up-2">
           © Data Express · El token no se almacena ni se loguea en el servidor.
         </footer>
       </div>
+
+      {loadingAction && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-white/75 dark:bg-[#1b1f26]/85 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <Spinner className="h-12 w-12 animate-spin text-dxnavy dark:text-dxblue" />
+          <p className="text-sm font-medium text-dxnavy dark:text-gray-200">
+            {ACTION_LABELS[loadingAction]}
+          </p>
+          <p className="text-xs text-dxgray dark:text-gray-400">
+            Consultando Asana y armando el documento — esto puede tardar unos segundos.
+          </p>
+        </div>
+      )}
     </main>
   );
 }
