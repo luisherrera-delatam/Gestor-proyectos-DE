@@ -210,6 +210,7 @@ export default function Home() {
   const [preview, setPreview] = useState<ProjectSummary | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [excelCountry, setExcelCountry] = useState<string | null>(null);
 
   // Auth / proyectos
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
@@ -428,6 +429,43 @@ export default function Home() {
     }
   }
 
+  async function downloadExcel(country: string) {
+    setError(null);
+    setExcelCountry(country);
+    try {
+      const payload: Record<string, string> = { country };
+      if (!connected && token.trim()) payload.token = token.trim();
+      const res = await fetch("/api/excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const match = cd.match(/filename="?([^"]+)"?/);
+      const filename = match ? match[1] : `Proyectos_${country}.xlsx`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setToast(`Excel de ${country} descargado`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setExcelCountry(null);
+    }
+  }
+
   // Cambios en credenciales o proyecto invalidan la vista previa cargada.
   function onTokenChange(value: string) {
     setToken(value);
@@ -476,7 +514,8 @@ export default function Home() {
 
   const projectChosen = selectedProjectGid.trim().length > 0 || projectUrl.trim().length > 0;
   const formValid = hasAuth && projectChosen;
-  const busy = loadingAction !== null || previewLoading || projectsLoading;
+  const busy =
+    loadingAction !== null || previewLoading || projectsLoading || excelCountry !== null;
 
   return (
     <main className="min-h-screen flex items-start justify-center py-12 px-4">
@@ -648,6 +687,8 @@ export default function Home() {
                 value={selectedProjectGid}
                 onChange={onProjectSelect}
                 disabled={busy}
+                onExportCountry={downloadExcel}
+                exportingCountry={excelCountry}
               />
             ) : null}
 

@@ -47,6 +47,10 @@ export interface AsanaProjectListItem {
   owner?: { name?: string | null } | null;
   current_status?: { status_type?: string | null } | null;
   completed?: boolean | null;
+  /** Fecha fin del proyecto (due_on de Asana, YYYY-MM-DD). */
+  dueOn?: string | null;
+  /** % de avance (tareas completadas / total). null si no se pudo calcular. */
+  pct?: number | null;
 }
 
 /** Un proyecto está vigente si no fue marcado como completado en Asana. */
@@ -292,15 +296,33 @@ export async function fetchWorkspaces(token: string): Promise<AsanaWorkspace[]> 
   return fetchAllPaginated<AsanaWorkspace>("/workspaces?opt_fields=name", token);
 }
 
+interface ProjectListRaw {
+  gid: string;
+  name: string;
+  owner?: { name?: string | null } | null;
+  current_status?: { status_type?: string | null } | null;
+  completed?: boolean | null;
+  due_on?: string | null;
+}
+
 /** Proyectos activos (no archivados) de un workspace. */
 export async function fetchProjectsForWorkspace(
   token: string,
   workspaceGid: string
 ): Promise<AsanaProjectListItem[]> {
-  return fetchAllPaginated<AsanaProjectListItem>(
-    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name,current_status.status_type,completed`,
+  const raw = await fetchAllPaginated<ProjectListRaw>(
+    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name,current_status.status_type,completed,due_on`,
     token
   );
+  return raw.map((r) => ({
+    gid: r.gid,
+    name: r.name,
+    owner: r.owner ?? null,
+    current_status: r.current_status ?? null,
+    completed: r.completed ?? null,
+    dueOn: r.due_on ?? null,
+    pct: null,
+  }));
 }
 
 interface PortfolioItemRaw {
@@ -310,6 +332,7 @@ interface PortfolioItemRaw {
   owner?: { name?: string | null } | null;
   completed?: boolean | null;
   current_status?: { status_type?: string | null } | null;
+  due_on?: string | null;
 }
 
 /** Portafolios que el usuario posee dentro de un workspace. */
@@ -330,7 +353,7 @@ async function fetchPortfoliosOwnedByUser(
 
 async function fetchPortfolioItems(token: string, portfolioGid: string): Promise<PortfolioItemRaw[]> {
   return fetchAllPaginated<PortfolioItemRaw>(
-    `/portfolios/${portfolioGid}/items?opt_fields=name,resource_type,owner.name,completed,current_status.status_type`,
+    `/portfolios/${portfolioGid}/items?opt_fields=name,resource_type,owner.name,completed,current_status.status_type,due_on`,
     token
   );
 }
@@ -418,7 +441,17 @@ export async function fetchAllProjects(token: string): Promise<WorkspaceProjects
       if (counts && counts.num_tasks > 0 && counts.num_completed_tasks >= counts.num_tasks) {
         return null;
       }
-      return { gid: p.gid, name: p.name, owner: p.owner ?? null } as AsanaProjectListItem;
+      const pct =
+        counts && counts.num_tasks > 0
+          ? Math.round((counts.num_completed_tasks / counts.num_tasks) * 100)
+          : 0;
+      return {
+        gid: p.gid,
+        name: p.name,
+        owner: p.owner ?? null,
+        dueOn: p.due_on ?? null,
+        pct,
+      } as AsanaProjectListItem;
     });
     const active = filtered.filter((x): x is AsanaProjectListItem => x !== null);
     active.sort((a, b) => a.name.localeCompare(b.name));
