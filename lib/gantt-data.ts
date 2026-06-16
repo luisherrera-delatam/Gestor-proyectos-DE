@@ -41,6 +41,9 @@ export interface GanttDataset {
   endLabel: string;
   todayDay: number | null;
   todayLabel: string | null;
+  pct: number;
+  completedTasks: number;
+  totalTasks: number;
   skipped: { sectionName: string; taskName: string; reason: string }[];
   generatedAt: Date;
 }
@@ -226,6 +229,9 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
       endLabel: formatLongDate(end),
       todayDay: 0,
       todayLabel: formatShortDate(today),
+      pct: project.totals.pct,
+      completedTasks: project.totals.completed,
+      totalTasks: project.totals.tasks,
       skipped,
       generatedAt: now,
     };
@@ -298,6 +304,9 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
     endLabel: formatLongDate(maxDate),
     todayDay,
     todayLabel,
+    pct: project.totals.pct,
+    completedTasks: project.totals.completed,
+    totalTasks: project.totals.tasks,
     skipped,
     generatedAt: now,
   };

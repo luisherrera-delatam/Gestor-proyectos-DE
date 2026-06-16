@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { WorkspaceProjects } from "@/lib/asana";
+import type { AsanaProjectListItem, WorkspaceProjects } from "@/lib/asana";
+import { COUNTRY_ORDER, detectCountry } from "@/lib/countries";
 
 interface Props {
   workspaces: WorkspaceProjects[];
@@ -62,37 +63,58 @@ function SearchIcon({ className }: { className?: string }) {
   );
 }
 
+interface CountryGroup {
+  country: string;
+  projects: AsanaProjectListItem[];
+}
+
 export default function ProjectPicker({ workspaces, value, onChange, disabled }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const totalProjects = useMemo(
-    () => workspaces.reduce((n, w) => n + w.projects.length, 0),
+  const allProjects = useMemo(
+    () => workspaces.flatMap((w) => w.projects),
     [workspaces]
   );
 
-  const selectedName = useMemo(() => {
-    for (const ws of workspaces) {
-      const p = ws.projects.find((p) => p.gid === value);
-      if (p) return p.name;
-    }
-    return "";
-  }, [workspaces, value]);
+  const totalProjects = allProjects.length;
 
-  const filtered = useMemo(() => {
+  const selected = useMemo(
+    () => allProjects.find((p) => p.gid === value) ?? null,
+    [allProjects, value]
+  );
+
+  // Agrupa por país (según el prefijo del nombre) respetando un orden fijo.
+  const groups = useMemo<CountryGroup[]>(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return workspaces;
-    return workspaces
-      .map((ws) => ({
-        ...ws,
-        projects: ws.projects.filter((p) => p.name.toLowerCase().includes(q)),
-      }))
-      .filter((ws) => ws.projects.length > 0);
-  }, [workspaces, query]);
+    const filtered = q
+      ? allProjects.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            (p.owner?.name || "").toLowerCase().includes(q)
+        )
+      : allProjects;
 
-  // Cerrar al hacer click afuera.
+    const byCountry = new Map<string, AsanaProjectListItem[]>();
+    for (const p of filtered) {
+      const c = detectCountry(p.name);
+      if (!byCountry.has(c)) byCountry.set(c, []);
+      byCountry.get(c)!.push(p);
+    }
+
+    const ordered: CountryGroup[] = [];
+    for (const country of COUNTRY_ORDER) {
+      const list = byCountry.get(country);
+      if (list && list.length) {
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        ordered.push({ country, projects: list });
+      }
+    }
+    return ordered;
+  }, [allProjects, query]);
+
   useEffect(() => {
     if (!open) return;
     function onClick(e: MouseEvent) {
@@ -111,7 +133,6 @@ export default function ProjectPicker({ workspaces, value, onChange, disabled }:
     };
   }, [open]);
 
-  // Enfocar el buscador al abrir.
   useEffect(() => {
     if (open) {
       setQuery("");
@@ -134,14 +155,23 @@ export default function ProjectPicker({ workspaces, value, onChange, disabled }:
         aria-expanded={open}
         className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#1c2027] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue transition disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        <span
-          className={
-            selectedName
-              ? "truncate text-dxnavy dark:text-gray-100"
-              : "truncate text-gray-400 dark:text-gray-500"
-          }
-        >
-          {selectedName || `Selecciona un proyecto (${totalProjects})`}
+        <span className="min-w-0">
+          {selected ? (
+            <span className="block">
+              <span className="block truncate text-dxnavy dark:text-gray-100">
+                {selected.name}
+              </span>
+              {selected.owner?.name && (
+                <span className="block truncate text-[11px] text-dxgray dark:text-gray-400">
+                  {detectCountry(selected.name)} · {selected.owner.name}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="truncate text-gray-400 dark:text-gray-500">
+              Selecciona un proyecto ({totalProjects})
+            </span>
+          )}
         </span>
         <ChevronIcon
           className={`h-4 w-4 shrink-0 text-dxgray dark:text-gray-400 transition-transform ${
@@ -162,26 +192,27 @@ export default function ProjectPicker({ workspaces, value, onChange, disabled }:
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar proyecto…"
+                placeholder="Buscar por proyecto o responsable…"
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue"
               />
             </div>
           </div>
 
-          <div className="max-h-64 overflow-y-auto py-1">
-            {filtered.length === 0 ? (
+          <div className="max-h-72 overflow-y-auto py-1">
+            {groups.length === 0 ? (
               <p className="px-3 py-4 text-center text-sm text-dxgray dark:text-gray-400">
                 Sin resultados
               </p>
             ) : (
-              filtered.map((ws) => (
-                <div key={ws.gid}>
-                  {workspaces.length > 1 && (
-                    <p className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-500">
-                      {ws.name}
-                    </p>
-                  )}
-                  {ws.projects.map((p) => {
+              groups.map((g) => (
+                <div key={g.country}>
+                  <p className="sticky top-0 bg-white dark:bg-[#23272f] px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-widest text-dxnavy dark:text-dxblue">
+                    {g.country}{" "}
+                    <span className="text-dxgray dark:text-gray-500 font-normal">
+                      ({g.projects.length})
+                    </span>
+                  </p>
+                  {g.projects.map((p) => {
                     const active = p.gid === value;
                     return (
                       <button
@@ -192,14 +223,21 @@ export default function ProjectPicker({ workspaces, value, onChange, disabled }:
                         onClick={() => pick(p.gid)}
                         className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition ${
                           active
-                            ? "bg-dxnavy/10 dark:bg-dxblue/15 text-dxnavy dark:text-dxblue font-medium"
+                            ? "bg-dxnavy/10 dark:bg-dxblue/15 text-dxnavy dark:text-dxblue"
                             : "text-dxnavy dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2e343d]"
                         }`}
                       >
                         <CheckIcon
                           className={`h-4 w-4 shrink-0 ${active ? "opacity-100" : "opacity-0"}`}
                         />
-                        <span className="truncate">{p.name}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block truncate ${active ? "font-medium" : ""}`}>
+                            {p.name}
+                          </span>
+                          <span className="block truncate text-[11px] text-dxgray dark:text-gray-400">
+                            {p.owner?.name || "Sin responsable"}
+                          </span>
+                        </span>
                       </button>
                     );
                   })}

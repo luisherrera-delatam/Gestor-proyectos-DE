@@ -94,6 +94,19 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: { fontSize: 14, color: NAVY, fontFamily: "Helvetica-Bold", lineHeight: 1.2 },
+  avanceWrap: { alignItems: "center", paddingHorizontal: 14 },
+  avanceLabel: { fontSize: 7, color: GRAY, letterSpacing: 1 },
+  avancePct: { fontSize: 24, color: NAVY, fontFamily: "Helvetica-Bold", lineHeight: 1.1 },
+  avanceBar: {
+    width: 78,
+    height: 5,
+    backgroundColor: GRID,
+    borderRadius: 3,
+    marginTop: 3,
+    overflow: "hidden",
+  },
+  avanceFill: { height: 5, backgroundColor: COMPLETED, borderRadius: 3 },
+  avanceTasks: { fontSize: 7, color: GRAY, marginTop: 2 },
   meta: { textAlign: "right" },
   metaLabel: { fontSize: 7, color: GRAY, letterSpacing: 1 },
   metaValue: { fontSize: 10, color: NAVY, fontFamily: "Helvetica-Bold", marginTop: 2 },
@@ -349,11 +362,21 @@ function HeaderBlock({
         ) : (
           <Text style={styles.brandBox}>DX</Text>
         )}
-        <View style={{ maxWidth: 470 }}>
+        <View style={{ maxWidth: 360 }}>
           <Text style={styles.brand}>D A T A   E X P R E S S</Text>
           <Text style={styles.subtitle}>Diagrama de Gantt</Text>
           <Text style={styles.title}>{dataset.projectName}</Text>
         </View>
+      </View>
+      <View style={styles.avanceWrap}>
+        <Text style={styles.avanceLabel}>AVANCE DEL PROYECTO</Text>
+        <Text style={styles.avancePct}>{dataset.pct}%</Text>
+        <View style={styles.avanceBar}>
+          <View style={[styles.avanceFill, { width: (78 * dataset.pct) / 100 }]} />
+        </View>
+        <Text style={styles.avanceTasks}>
+          {dataset.completedTasks}/{dataset.totalTasks} tareas
+        </Text>
       </View>
       <View style={styles.meta}>
         <Text style={styles.metaLabel}>RANGO DEL PROYECTO</Text>

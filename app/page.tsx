@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ProjectSummary } from "@/lib/project-summary";
+import type { WorkspaceProjects } from "@/lib/asana";
 import ProjectPicker from "./ProjectPicker";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
@@ -10,12 +11,6 @@ interface AuthStatus {
   configured: boolean;
   connected: boolean;
   userName?: string | null;
-}
-
-interface WorkspaceProjects {
-  gid: string;
-  name: string;
-  projects: { gid: string; name: string }[];
 }
 
 const TOKEN_STORAGE_KEY = "asanaweb.asana_token.v1";
@@ -700,7 +695,7 @@ export default function Home() {
                     </h2>
                     {preview.owner && (
                       <p className="text-xs text-dxgray dark:text-gray-400 mt-0.5">
-                        Líder: {preview.owner}
+                        Responsable: {preview.owner}
                       </p>
                     )}
                   </div>

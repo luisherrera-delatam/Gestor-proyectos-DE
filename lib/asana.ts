@@ -44,6 +44,7 @@ export interface AsanaWorkspace {
 export interface AsanaProjectListItem {
   gid: string;
   name: string;
+  owner?: { name?: string | null } | null;
 }
 
 export interface WorkspaceProjects {
@@ -285,7 +286,7 @@ export async function fetchProjectsForWorkspace(
   workspaceGid: string
 ): Promise<AsanaProjectListItem[]> {
   return fetchAllPaginated<AsanaProjectListItem>(
-    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name`,
+    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name`,
     token
   );
 }
