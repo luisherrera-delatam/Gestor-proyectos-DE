@@ -405,25 +405,32 @@ export async function fetchTaskCounts(
   }
 }
 
+/** Proyecto candidato antes de enriquecer con el % de avance. */
+interface ProjectCandidate {
+  gid: string;
+  name: string;
+  owner: { name?: string | null } | null;
+  dueOn: string | null;
+  completed: boolean | null;
+  current_status: { status_type?: string | null } | null;
+}
+
 /**
  * Lista los proyectos vigentes del usuario.
  *
  * Fuente principal: los proyectos que viven dentro de los portafolios del
- * usuario (recorriendo subportafolios). Esos son los proyectos "vigentes".
- * Se excluyen:
- *   - proyectos marcados como completados (completed o status "complete"), y
- *   - proyectos al 100% de avance (todas las tareas completadas), según
- *     task_counts.
+ * usuario (recorriendo subportafolios). Si no hay portafolios accesibles, cae
+ * a listar todos los proyectos no archivados del workspace.
  *
- * Si el usuario no tiene portafolios accesibles, cae a listar todos los
- * proyectos no finalizados del workspace (sin el filtro de 100%, para no
- * disparar un conteo por cada proyecto).
+ * En ambos casos se calcula el % de avance con task_counts (tareas completadas
+ * / total) y se ocultan los proyectos finalizados: marcados como completados,
+ * con status "complete", o al 100% de avance.
  */
 export async function fetchAllProjects(token: string): Promise<WorkspaceProjects[]> {
   const me = await fetchCurrentUser(token);
   const workspaces = await fetchWorkspaces(token);
 
-  // 1) Reunir proyectos dentro de los portafolios del usuario.
+  // 1) Reunir candidatos: primero desde los portafolios del usuario.
   const portfolioProjects = new Map<string, PortfolioItemRaw>();
   const seenPortfolios = new Set<string>();
   for (const ws of workspaces) {
@@ -433,38 +440,59 @@ export async function fetchAllProjects(token: string): Promise<WorkspaceProjects
     }
   }
 
+  let candidates: ProjectCandidate[];
   if (portfolioProjects.size > 0) {
-    const candidates = Array.from(portfolioProjects.values()).filter(isProjectActive);
-    const filtered = await mapWithConcurrency(candidates, 8, async (p) => {
-      const counts = await fetchTaskCounts(token, p.gid);
-      // Ocultar los que están al 100% (todas las tareas completadas).
-      if (counts && counts.num_tasks > 0 && counts.num_completed_tasks >= counts.num_tasks) {
-        return null;
-      }
-      const pct =
-        counts && counts.num_tasks > 0
-          ? Math.round((counts.num_completed_tasks / counts.num_tasks) * 100)
-          : 0;
-      return {
-        gid: p.gid,
-        name: p.name,
-        owner: p.owner ?? null,
-        dueOn: p.due_on ?? null,
-        pct,
-      } as AsanaProjectListItem;
-    });
-    const active = filtered.filter((x): x is AsanaProjectListItem => x !== null);
-    active.sort((a, b) => a.name.localeCompare(b.name));
-    return active.length
-      ? [{ gid: "portfolios", name: "Proyectos vigentes", projects: active }]
-      : [];
+    candidates = Array.from(portfolioProjects.values()).map((p) => ({
+      gid: p.gid,
+      name: p.name,
+      owner: p.owner ?? null,
+      dueOn: p.due_on ?? null,
+      completed: p.completed ?? null,
+      current_status: p.current_status ?? null,
+    }));
+  } else {
+    // Fallback: todos los proyectos no archivados de los workspaces.
+    const lists = await mapWithConcurrency(workspaces, 4, (ws) =>
+      fetchProjectsForWorkspace(token, ws.gid)
+    );
+    candidates = lists.flat().map((p) => ({
+      gid: p.gid,
+      name: p.name,
+      owner: p.owner ?? null,
+      dueOn: p.dueOn ?? null,
+      completed: p.completed ?? null,
+      current_status: p.current_status ?? null,
+    }));
   }
 
-  // 2) Fallback: sin portafolios accesibles → proyectos no finalizados del workspace.
-  const result = await mapWithConcurrency(workspaces, 4, async (ws) => {
-    const all = await fetchProjectsForWorkspace(token, ws.gid);
-    const projects = all.filter(isProjectActive);
-    return { gid: ws.gid, name: ws.name, projects };
+  // 2) Quitar finalizados (marcados completos / status complete).
+  const active = candidates.filter(isProjectActive);
+
+  // 3) Enriquecer con el % de avance y ocultar los que están al 100%.
+  const enriched = await mapWithConcurrency(active, 10, async (p) => {
+    const counts = await fetchTaskCounts(token, p.gid);
+    if (counts && counts.num_tasks > 0 && counts.num_completed_tasks >= counts.num_tasks) {
+      return null; // 100% completado
+    }
+    const pct =
+      counts && counts.num_tasks > 0
+        ? Math.round((counts.num_completed_tasks / counts.num_tasks) * 100)
+        : counts
+          ? 0
+          : null;
+    return {
+      gid: p.gid,
+      name: p.name,
+      owner: p.owner,
+      dueOn: p.dueOn,
+      pct,
+    } as AsanaProjectListItem;
   });
-  return result.filter((w) => w.projects.length > 0);
+
+  const projects = enriched.filter((x): x is AsanaProjectListItem => x !== null);
+  projects.sort((a, b) => a.name.localeCompare(b.name));
+
+  return projects.length
+    ? [{ gid: "vigentes", name: "Proyectos vigentes", projects }]
+    : [];
 }
