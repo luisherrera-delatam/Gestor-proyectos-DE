@@ -46,6 +46,17 @@ export interface AsanaProjectListItem {
   name: string;
   owner?: { name?: string | null } | null;
   current_status?: { status_type?: string | null } | null;
+  completed?: boolean | null;
+}
+
+/** Un proyecto está vigente si no fue marcado como completado en Asana. */
+export function isProjectActive(p: {
+  completed?: boolean | null;
+  current_status?: { status_type?: string | null } | null;
+}): boolean {
+  if (p.completed === true) return false;
+  if (p.current_status?.status_type === "complete") return false;
+  return true;
 }
 
 export interface WorkspaceProjects {
@@ -287,23 +298,139 @@ export async function fetchProjectsForWorkspace(
   workspaceGid: string
 ): Promise<AsanaProjectListItem[]> {
   return fetchAllPaginated<AsanaProjectListItem>(
-    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name,current_status.status_type`,
+    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name,current_status.status_type,completed`,
     token
   );
 }
 
+interface PortfolioItemRaw {
+  gid: string;
+  name: string;
+  resource_type: string;
+  owner?: { name?: string | null } | null;
+  completed?: boolean | null;
+  current_status?: { status_type?: string | null } | null;
+}
+
+/** Portafolios que el usuario posee dentro de un workspace. */
+async function fetchPortfoliosOwnedByUser(
+  token: string,
+  workspaceGid: string,
+  ownerGid: string
+): Promise<{ gid: string; name: string }[]> {
+  try {
+    return await fetchAllPaginated<{ gid: string; name: string }>(
+      `/portfolios?workspace=${workspaceGid}&owner=${ownerGid}&opt_fields=name`,
+      token
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function fetchPortfolioItems(token: string, portfolioGid: string): Promise<PortfolioItemRaw[]> {
+  return fetchAllPaginated<PortfolioItemRaw>(
+    `/portfolios/${portfolioGid}/items?opt_fields=name,resource_type,owner.name,completed,current_status.status_type`,
+    token
+  );
+}
+
+/** Recorre un portafolio (y sus subportafolios) acumulando los proyectos. */
+async function collectPortfolioProjects(
+  token: string,
+  portfolioGid: string,
+  seen: Set<string>,
+  out: Map<string, PortfolioItemRaw>
+): Promise<void> {
+  if (seen.has(portfolioGid)) return;
+  seen.add(portfolioGid);
+
+  let items: PortfolioItemRaw[];
+  try {
+    items = await fetchPortfolioItems(token, portfolioGid);
+  } catch {
+    return;
+  }
+
+  for (const item of items) {
+    if (item.resource_type === "project") {
+      if (!out.has(item.gid)) out.set(item.gid, item);
+    } else if (item.resource_type === "portfolio") {
+      await collectPortfolioProjects(token, item.gid, seen, out);
+    }
+  }
+}
+
+export interface AsanaTaskCounts {
+  num_tasks: number;
+  num_completed_tasks: number;
+}
+
+/** Conteo de tareas de un proyecto (sin bajar todas las tareas). */
+export async function fetchTaskCounts(
+  token: string,
+  projectGid: string
+): Promise<AsanaTaskCounts | null> {
+  try {
+    const res: { data: AsanaTaskCounts } = await asanaFetch(
+      `/projects/${projectGid}/task_counts?opt_fields=num_tasks,num_completed_tasks`,
+      token
+    );
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Lista todos los proyectos del usuario, agrupados por workspace.
+ * Lista los proyectos vigentes del usuario.
  *
- * Excluye proyectos finalizados: en Asana, marcar un proyecto como completado
- * deja su última actualización de estado con status_type "complete". Solo se
- * devuelven los que NO están en ese estado.
+ * Fuente principal: los proyectos que viven dentro de los portafolios del
+ * usuario (recorriendo subportafolios). Esos son los proyectos "vigentes".
+ * Se excluyen:
+ *   - proyectos marcados como completados (completed o status "complete"), y
+ *   - proyectos al 100% de avance (todas las tareas completadas), según
+ *     task_counts.
+ *
+ * Si el usuario no tiene portafolios accesibles, cae a listar todos los
+ * proyectos no finalizados del workspace (sin el filtro de 100%, para no
+ * disparar un conteo por cada proyecto).
  */
 export async function fetchAllProjects(token: string): Promise<WorkspaceProjects[]> {
+  const me = await fetchCurrentUser(token);
   const workspaces = await fetchWorkspaces(token);
+
+  // 1) Reunir proyectos dentro de los portafolios del usuario.
+  const portfolioProjects = new Map<string, PortfolioItemRaw>();
+  const seenPortfolios = new Set<string>();
+  for (const ws of workspaces) {
+    const portfolios = await fetchPortfoliosOwnedByUser(token, ws.gid, me.gid);
+    for (const pf of portfolios) {
+      await collectPortfolioProjects(token, pf.gid, seenPortfolios, portfolioProjects);
+    }
+  }
+
+  if (portfolioProjects.size > 0) {
+    const candidates = Array.from(portfolioProjects.values()).filter(isProjectActive);
+    const filtered = await mapWithConcurrency(candidates, 8, async (p) => {
+      const counts = await fetchTaskCounts(token, p.gid);
+      // Ocultar los que están al 100% (todas las tareas completadas).
+      if (counts && counts.num_tasks > 0 && counts.num_completed_tasks >= counts.num_tasks) {
+        return null;
+      }
+      return { gid: p.gid, name: p.name, owner: p.owner ?? null } as AsanaProjectListItem;
+    });
+    const active = filtered.filter((x): x is AsanaProjectListItem => x !== null);
+    active.sort((a, b) => a.name.localeCompare(b.name));
+    return active.length
+      ? [{ gid: "portfolios", name: "Proyectos vigentes", projects: active }]
+      : [];
+  }
+
+  // 2) Fallback: sin portafolios accesibles → proyectos no finalizados del workspace.
   const result = await mapWithConcurrency(workspaces, 4, async (ws) => {
     const all = await fetchProjectsForWorkspace(token, ws.gid);
-    const projects = all.filter((p) => p.current_status?.status_type !== "complete");
+    const projects = all.filter(isProjectActive);
     return { gid: ws.gid, name: ws.name, projects };
   });
   return result.filter((w) => w.projects.length > 0);
