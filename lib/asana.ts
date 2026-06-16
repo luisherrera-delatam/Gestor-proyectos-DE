@@ -45,6 +45,7 @@ export interface AsanaProjectListItem {
   gid: string;
   name: string;
   owner?: { name?: string | null } | null;
+  current_status?: { status_type?: string | null } | null;
 }
 
 export interface WorkspaceProjects {
@@ -286,16 +287,23 @@ export async function fetchProjectsForWorkspace(
   workspaceGid: string
 ): Promise<AsanaProjectListItem[]> {
   return fetchAllPaginated<AsanaProjectListItem>(
-    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name`,
+    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name,current_status.status_type`,
     token
   );
 }
 
-/** Lista todos los proyectos del usuario, agrupados por workspace. */
+/**
+ * Lista todos los proyectos del usuario, agrupados por workspace.
+ *
+ * Excluye proyectos finalizados: en Asana, marcar un proyecto como completado
+ * deja su última actualización de estado con status_type "complete". Solo se
+ * devuelven los que NO están en ese estado.
+ */
 export async function fetchAllProjects(token: string): Promise<WorkspaceProjects[]> {
   const workspaces = await fetchWorkspaces(token);
   const result = await mapWithConcurrency(workspaces, 4, async (ws) => {
-    const projects = await fetchProjectsForWorkspace(token, ws.gid);
+    const all = await fetchProjectsForWorkspace(token, ws.gid);
+    const projects = all.filter((p) => p.current_status?.status_type !== "complete");
     return { gid: ws.gid, name: ws.name, projects };
   });
   return result.filter((w) => w.projects.length > 0);
