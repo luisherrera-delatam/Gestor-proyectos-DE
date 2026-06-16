@@ -423,8 +423,11 @@ interface ProjectCandidate {
  * a listar todos los proyectos no archivados del workspace.
  *
  * En ambos casos se calcula el % de avance con task_counts (tareas completadas
- * / total) y se ocultan los proyectos finalizados: marcados como completados,
- * con status "complete", o al 100% de avance.
+ * / total). Se ocultan los proyectos finalizados de forma explícita: marcados
+ * como completados o con status "complete" (los archivados ya se excluyen en
+ * la consulta). NO se ocultan automáticamente los que están al 100% de tareas,
+ * porque en Asana un proyecto al 100% suele seguir vigente; el % queda visible
+ * para identificarlos.
  */
 export async function fetchAllProjects(token: string): Promise<WorkspaceProjects[]> {
   const me = await fetchCurrentUser(token);
@@ -468,12 +471,9 @@ export async function fetchAllProjects(token: string): Promise<WorkspaceProjects
   // 2) Quitar finalizados (marcados completos / status complete).
   const active = candidates.filter(isProjectActive);
 
-  // 3) Enriquecer con el % de avance y ocultar los que están al 100%.
+  // 3) Enriquecer con el % de avance (sin ocultar los de 100%).
   const enriched = await mapWithConcurrency(active, 10, async (p) => {
     const counts = await fetchTaskCounts(token, p.gid);
-    if (counts && counts.num_tasks > 0 && counts.num_completed_tasks >= counts.num_tasks) {
-      return null; // 100% completado
-    }
     const pct =
       counts && counts.num_tasks > 0
         ? Math.round((counts.num_completed_tasks / counts.num_tasks) * 100)
@@ -489,7 +489,7 @@ export async function fetchAllProjects(token: string): Promise<WorkspaceProjects
     } as AsanaProjectListItem;
   });
 
-  const projects = enriched.filter((x): x is AsanaProjectListItem => x !== null);
+  const projects = enriched;
   projects.sort((a, b) => a.name.localeCompare(b.name));
 
   return projects.length
