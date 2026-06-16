@@ -51,15 +51,37 @@ export interface AsanaProjectListItem {
   dueOn?: string | null;
   /** % de avance (tareas completadas / total). null si no se pudo calcular. */
   pct?: number | null;
+  /** Campos personalizados (nombre + valor mostrado), para detectar "Estado: Finalizado". */
+  customFields?: ({ name?: string | null; display_value?: string | null } | null)[] | null;
 }
 
-/** Un proyecto está vigente si no fue marcado como completado en Asana. */
+/** Texto que, en un campo de estado, indica que el proyecto está finalizado. */
+const FINISHED_VALUE_RE = /finaliz|completad|cerrad|terminad/i;
+/** Nombres de campo personalizado que representan el "estado" del proyecto. */
+const STATUS_FIELD_NAME_RE = /estado|status|fase|etapa/i;
+
+/**
+ * Un proyecto está vigente si NO está finalizado. Se considera finalizado si:
+ *   - tiene el check de proyecto completado (completed),
+ *   - su última actualización de estado es de tipo "complete", o
+ *   - un campo personalizado de estado (Estado / Status / Fase) tiene un valor
+ *     como "Finalizado" / "Completado" / "Cerrado" / "Terminado".
+ */
 export function isProjectActive(p: {
   completed?: boolean | null;
   current_status?: { status_type?: string | null } | null;
+  customFields?: ({ name?: string | null; display_value?: string | null } | null)[] | null;
 }): boolean {
   if (p.completed === true) return false;
   if (p.current_status?.status_type === "complete") return false;
+  for (const cf of p.customFields ?? []) {
+    if (!cf) continue;
+    const name = cf.name ?? "";
+    const value = cf.display_value ?? "";
+    if (STATUS_FIELD_NAME_RE.test(name) && FINISHED_VALUE_RE.test(value)) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -296,6 +318,11 @@ export async function fetchWorkspaces(token: string): Promise<AsanaWorkspace[]> 
   return fetchAllPaginated<AsanaWorkspace>("/workspaces?opt_fields=name", token);
 }
 
+interface CustomFieldValue {
+  name?: string | null;
+  display_value?: string | null;
+}
+
 interface ProjectListRaw {
   gid: string;
   name: string;
@@ -303,6 +330,7 @@ interface ProjectListRaw {
   current_status?: { status_type?: string | null } | null;
   completed?: boolean | null;
   due_on?: string | null;
+  custom_fields?: (CustomFieldValue | null)[] | null;
 }
 
 /** Proyectos activos (no archivados) de un workspace. */
@@ -311,7 +339,7 @@ export async function fetchProjectsForWorkspace(
   workspaceGid: string
 ): Promise<AsanaProjectListItem[]> {
   const raw = await fetchAllPaginated<ProjectListRaw>(
-    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name,current_status.status_type,completed,due_on`,
+    `/projects?workspace=${workspaceGid}&archived=false&opt_fields=name,owner.name,current_status.status_type,completed,due_on,custom_fields.name,custom_fields.display_value`,
     token
   );
   return raw.map((r) => ({
@@ -322,6 +350,7 @@ export async function fetchProjectsForWorkspace(
     completed: r.completed ?? null,
     dueOn: r.due_on ?? null,
     pct: null,
+    customFields: r.custom_fields ?? null,
   }));
 }
 
@@ -333,6 +362,7 @@ interface PortfolioItemRaw {
   completed?: boolean | null;
   current_status?: { status_type?: string | null } | null;
   due_on?: string | null;
+  custom_fields?: (CustomFieldValue | null)[] | null;
 }
 
 /** Portafolios que el usuario posee dentro de un workspace. */
@@ -353,7 +383,7 @@ async function fetchPortfoliosOwnedByUser(
 
 async function fetchPortfolioItems(token: string, portfolioGid: string): Promise<PortfolioItemRaw[]> {
   return fetchAllPaginated<PortfolioItemRaw>(
-    `/portfolios/${portfolioGid}/items?opt_fields=name,resource_type,owner.name,completed,current_status.status_type,due_on`,
+    `/portfolios/${portfolioGid}/items?opt_fields=name,resource_type,owner.name,completed,current_status.status_type,due_on,custom_fields.name,custom_fields.display_value`,
     token
   );
 }
@@ -413,6 +443,7 @@ interface ProjectCandidate {
   dueOn: string | null;
   completed: boolean | null;
   current_status: { status_type?: string | null } | null;
+  customFields: (CustomFieldValue | null)[] | null;
 }
 
 /**
@@ -452,6 +483,7 @@ export async function fetchAllProjects(token: string): Promise<WorkspaceProjects
       dueOn: p.due_on ?? null,
       completed: p.completed ?? null,
       current_status: p.current_status ?? null,
+      customFields: p.custom_fields ?? null,
     }));
   } else {
     // Fallback: todos los proyectos no archivados de los workspaces.
@@ -465,6 +497,7 @@ export async function fetchAllProjects(token: string): Promise<WorkspaceProjects
       dueOn: p.dueOn ?? null,
       completed: p.completed ?? null,
       current_status: p.current_status ?? null,
+      customFields: p.customFields ?? null,
     }));
   }
 
