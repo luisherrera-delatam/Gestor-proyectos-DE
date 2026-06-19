@@ -540,11 +540,11 @@ export default function Home() {
             >
               DX
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
                 Data Express
               </p>
-              <h1 className="text-xl font-semibold text-dxnavy dark:text-gray-100 leading-tight">
+              <h1 className="text-lg sm:text-xl font-semibold text-dxnavy dark:text-gray-100 leading-tight">
                 Generador de documentos del proyecto
               </h1>
             </div>
@@ -552,12 +552,12 @@ export default function Home() {
               type="button"
               onClick={toggleTheme}
               title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo noche"}
-              className="ml-auto h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-dxnavy dark:text-gray-200 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition"
+              className="ml-auto shrink-0 h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-dxnavy dark:text-gray-200 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition"
             >
               {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
           </div>
-          <p className="text-sm text-dxgray dark:text-gray-400 ml-15 pl-1">
+          <p className="text-sm text-dxgray dark:text-gray-400 mt-1 sm:ml-[3.75rem]">
             Conéctate con Asana, elige un proyecto y genera el Acta de Inicio, el
             Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el formato
             corporativo.
@@ -971,7 +971,7 @@ export default function Home() {
 
       {loadingAction && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-white/75 dark:bg-[#1b1f26]/85 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 px-6 text-center bg-white/75 dark:bg-[#1b1f26]/85 backdrop-blur-sm"
           role="status"
           aria-live="polite"
         >
@@ -979,7 +979,7 @@ export default function Home() {
           <p className="text-sm font-medium text-dxnavy dark:text-gray-200">
             {ACTION_LABELS[loadingAction]}
           </p>
-          <p className="text-xs text-dxgray dark:text-gray-400">
+          <p className="text-xs text-dxgray dark:text-gray-400 max-w-xs">
             Consultando Asana y armando el documento — esto puede tardar unos segundos.
           </p>
         </div>
@@ -987,12 +987,12 @@ export default function Home() {
 
       {toast && (
         <div
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full bg-dxnavy dark:bg-dxblue text-white dark:text-gray-900 px-4 py-2 shadow-lg toast-in"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 max-w-[92vw] rounded-full bg-dxnavy dark:bg-dxblue text-white dark:text-gray-900 px-4 py-2 shadow-lg toast-in"
           role="status"
           aria-live="polite"
         >
           <CheckCircleIcon className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">{toast}</span>
+          <span className="text-sm font-medium truncate">{toast}</span>
         </div>
       )}
     </main>
