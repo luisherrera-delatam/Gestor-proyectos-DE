@@ -2,11 +2,11 @@
 
 Este proyecto usa **pnpm** (no npm). El archivo `package.json` incluye un `preinstall` con `npx only-allow pnpm` que bloquea cualquier intento de instalar con npm o yarn.
 
-El workflow `.github/workflows/ci.yml` corre:
+El workflow `.github/workflows/ci.yml` solo **verifica** (Node 22): `typecheck` → `test` → `build` con pnpm. No requiere secrets.
 
-1. **Verify** (Node 20 y 22 en paralelo): `typecheck` → `test` → `build` con pnpm.
-2. **Deploy Preview** en cada Pull Request (gated en `verify`). Publica un comentario en el PR con la URL.
-3. **Deploy Production** en cada push a `main` (gated en `verify`).
+El **deploy lo hace Vercel** directamente mediante su integración con GitHub: cada push a `main` despliega a producción y cada PR genera un preview automático. Por eso el workflow no incluye jobs de deploy (evita duplicar despliegues y fallar por falta de secrets).
+
+> Nota: se testea solo en Node 22 porque es el runtime de producción en Vercel y porque las herramientas de desarrollo (Vitest/Vite) exigen Node `>=20.19 || >=22.12`.
 
 ## Setup local
 
