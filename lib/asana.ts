@@ -354,66 +354,6 @@ export async function fetchProjectsForWorkspace(
   }));
 }
 
-interface PortfolioItemRaw {
-  gid: string;
-  name: string;
-  resource_type: string;
-  owner?: { name?: string | null } | null;
-  completed?: boolean | null;
-  current_status?: { status_type?: string | null } | null;
-  due_on?: string | null;
-  custom_fields?: (CustomFieldValue | null)[] | null;
-}
-
-/** Portafolios que el usuario posee dentro de un workspace. */
-async function fetchPortfoliosOwnedByUser(
-  token: string,
-  workspaceGid: string,
-  ownerGid: string
-): Promise<{ gid: string; name: string }[]> {
-  try {
-    return await fetchAllPaginated<{ gid: string; name: string }>(
-      `/portfolios?workspace=${workspaceGid}&owner=${ownerGid}&opt_fields=name`,
-      token
-    );
-  } catch {
-    return [];
-  }
-}
-
-async function fetchPortfolioItems(token: string, portfolioGid: string): Promise<PortfolioItemRaw[]> {
-  return fetchAllPaginated<PortfolioItemRaw>(
-    `/portfolios/${portfolioGid}/items?opt_fields=name,resource_type,owner.name,completed,current_status.status_type,due_on,custom_fields.name,custom_fields.display_value`,
-    token
-  );
-}
-
-/** Recorre un portafolio (y sus subportafolios) acumulando los proyectos. */
-async function collectPortfolioProjects(
-  token: string,
-  portfolioGid: string,
-  seen: Set<string>,
-  out: Map<string, PortfolioItemRaw>
-): Promise<void> {
-  if (seen.has(portfolioGid)) return;
-  seen.add(portfolioGid);
-
-  let items: PortfolioItemRaw[];
-  try {
-    items = await fetchPortfolioItems(token, portfolioGid);
-  } catch {
-    return;
-  }
-
-  for (const item of items) {
-    if (item.resource_type === "project") {
-      if (!out.has(item.gid)) out.set(item.gid, item);
-    } else if (item.resource_type === "portfolio") {
-      await collectPortfolioProjects(token, item.gid, seen, out);
-    }
-  }
-}
-
 export interface AsanaTaskCounts {
   num_tasks: number;
   num_completed_tasks: number;
@@ -435,76 +375,22 @@ export async function fetchTaskCounts(
   }
 }
 
-/** Proyecto candidato antes de enriquecer con el % de avance. */
-interface ProjectCandidate {
-  gid: string;
-  name: string;
-  owner: { name?: string | null } | null;
-  dueOn: string | null;
-  completed: boolean | null;
-  current_status: { status_type?: string | null } | null;
-  customFields: (CustomFieldValue | null)[] | null;
-}
-
 /**
- * Lista los proyectos vigentes del usuario.
+ * Lista todos los proyectos no archivados del usuario, agrupados por workspace.
  *
- * Fuente principal: los proyectos que viven dentro de los portafolios del
- * usuario (recorriendo subportafolios). Si no hay portafolios accesibles, cae
- * a listar todos los proyectos no archivados del workspace.
- *
- * En ambos casos se calcula el % de avance con task_counts (tareas completadas
- * / total). Se ocultan los proyectos finalizados de forma explícita: marcados
- * como completados o con status "complete" (los archivados ya se excluyen en
- * la consulta). NO se ocultan automáticamente los que están al 100% de tareas,
- * porque en Asana un proyecto al 100% suele seguir vigente; el % queda visible
- * para identificarlos.
+ * Se ocultan únicamente los proyectos finalizados (ver isProjectActive:
+ * completado, status "complete", o campo de estado tipo "Finalizado"). A cada
+ * proyecto se le calcula el % de avance con task_counts. El selector los
+ * agrupa por país a partir del prefijo del nombre.
  */
 export async function fetchAllProjects(token: string): Promise<WorkspaceProjects[]> {
-  const me = await fetchCurrentUser(token);
   const workspaces = await fetchWorkspaces(token);
 
-  // 1) Reunir candidatos: primero desde los portafolios del usuario.
-  const portfolioProjects = new Map<string, PortfolioItemRaw>();
-  const seenPortfolios = new Set<string>();
-  for (const ws of workspaces) {
-    const portfolios = await fetchPortfoliosOwnedByUser(token, ws.gid, me.gid);
-    for (const pf of portfolios) {
-      await collectPortfolioProjects(token, pf.gid, seenPortfolios, portfolioProjects);
-    }
-  }
+  const lists = await mapWithConcurrency(workspaces, 4, (ws) =>
+    fetchProjectsForWorkspace(token, ws.gid)
+  );
+  const active = lists.flat().filter(isProjectActive);
 
-  let candidates: ProjectCandidate[];
-  if (portfolioProjects.size > 0) {
-    candidates = Array.from(portfolioProjects.values()).map((p) => ({
-      gid: p.gid,
-      name: p.name,
-      owner: p.owner ?? null,
-      dueOn: p.due_on ?? null,
-      completed: p.completed ?? null,
-      current_status: p.current_status ?? null,
-      customFields: p.custom_fields ?? null,
-    }));
-  } else {
-    // Fallback: todos los proyectos no archivados de los workspaces.
-    const lists = await mapWithConcurrency(workspaces, 4, (ws) =>
-      fetchProjectsForWorkspace(token, ws.gid)
-    );
-    candidates = lists.flat().map((p) => ({
-      gid: p.gid,
-      name: p.name,
-      owner: p.owner ?? null,
-      dueOn: p.dueOn ?? null,
-      completed: p.completed ?? null,
-      current_status: p.current_status ?? null,
-      customFields: p.customFields ?? null,
-    }));
-  }
-
-  // 2) Quitar finalizados (marcados completos / status complete).
-  const active = candidates.filter(isProjectActive);
-
-  // 3) Enriquecer con el % de avance (sin ocultar los de 100%).
   const enriched = await mapWithConcurrency(active, 10, async (p) => {
     const counts = await fetchTaskCounts(token, p.gid);
     const pct =
@@ -513,19 +399,10 @@ export async function fetchAllProjects(token: string): Promise<WorkspaceProjects
         : counts
           ? 0
           : null;
-    return {
-      gid: p.gid,
-      name: p.name,
-      owner: p.owner,
-      dueOn: p.dueOn,
-      pct,
-    } as AsanaProjectListItem;
+    return { ...p, pct } as AsanaProjectListItem;
   });
 
-  const projects = enriched;
-  projects.sort((a, b) => a.name.localeCompare(b.name));
+  enriched.sort((a, b) => a.name.localeCompare(b.name));
 
-  return projects.length
-    ? [{ gid: "vigentes", name: "Proyectos vigentes", projects }]
-    : [];
+  return enriched.length ? [{ gid: "todos", name: "Proyectos", projects: enriched }] : [];
 }
