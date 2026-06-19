@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ProjectSummary } from "@/lib/project-summary";
 import type { WorkspaceProjects } from "@/lib/asana";
 import ProjectPicker from "./ProjectPicker";
+import CountryDashboard from "./CountryDashboard";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
 
@@ -682,14 +683,17 @@ export default function Home() {
                 Cargando tus proyectos…
               </div>
             ) : workspaces ? (
-              <ProjectPicker
-                workspaces={workspaces}
-                value={selectedProjectGid}
-                onChange={onProjectSelect}
-                disabled={busy}
-                onExportCountry={downloadExcel}
-                exportingCountry={excelCountry}
-              />
+              <>
+                <CountryDashboard workspaces={workspaces} />
+                <ProjectPicker
+                  workspaces={workspaces}
+                  value={selectedProjectGid}
+                  onChange={onProjectSelect}
+                  disabled={busy}
+                  onExportCountry={downloadExcel}
+                  exportingCountry={excelCountry}
+                />
+              </>
             ) : null}
 
             <button
