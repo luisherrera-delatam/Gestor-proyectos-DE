@@ -12,21 +12,52 @@ function Dot({ color }: { color: string }) {
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
+const TIP_EN_TIEMPO = "En tiempo: dentro de plazo";
+const TIP_RIESGO = "En riesgo: vence en ≤14 días y avance < 70%";
+const TIP_ATRASADO = "Atrasado: fecha fin vencida y avance < 100%";
+
 /** Semáforo compacto: 🟢 en tiempo · 🟡 en riesgo · 🔴 atrasados */
 function Semaphore({ k }: { k: HealthCounts }) {
   return (
     <div className="flex items-center gap-3 text-[11px] font-medium tabular-nums">
-      <span className="flex items-center gap-1 text-green-700 dark:text-green-400">
+      <span
+        title={TIP_EN_TIEMPO}
+        className="flex items-center gap-1 text-green-700 dark:text-green-400"
+      >
         <Dot color="bg-green-500" />
         {k.enTiempo}
       </span>
-      <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+      <span
+        title={TIP_RIESGO}
+        className="flex items-center gap-1 text-amber-600 dark:text-amber-400"
+      >
         <Dot color="bg-amber-500" />
         {k.riesgo}
       </span>
-      <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+      <span
+        title={TIP_ATRASADO}
+        className="flex items-center gap-1 text-red-600 dark:text-red-400"
+      >
         <Dot color="bg-red-500" />
         {k.atrasados}
+      </span>
+    </div>
+  );
+}
+
+/** Leyenda que explica qué significa cada color del semáforo. */
+function Legend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 text-[11px] text-dxgray dark:text-gray-400">
+      <span className="uppercase tracking-widest">Semáforo:</span>
+      <span title={TIP_EN_TIEMPO} className="flex items-center gap-1">
+        <Dot color="bg-green-500" /> En tiempo
+      </span>
+      <span title={TIP_RIESGO} className="flex items-center gap-1">
+        <Dot color="bg-amber-500" /> En riesgo <span className="opacity-70">(vence pronto)</span>
+      </span>
+      <span title={TIP_ATRASADO} className="flex items-center gap-1">
+        <Dot color="bg-red-500" /> Atrasado <span className="opacity-70">(vencido)</span>
       </span>
     </div>
   );
@@ -56,6 +87,9 @@ export default function CountryDashboard({ workspaces }: Props) {
         </div>
         <Semaphore k={global} />
       </div>
+
+      {/* Leyenda del semáforo */}
+      <Legend />
 
       {/* Tarjetas por país */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
