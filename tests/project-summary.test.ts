@@ -82,4 +82,32 @@ describe("buildProjectSummary", () => {
     expect(s.sections).toHaveLength(0);
     expect(s.ganttRows).toBe(0);
   });
+
+  it("computes pct including subtasks (matches the Gantt header)", () => {
+    const project: ProjectData = {
+      project: {
+        gid: "p",
+        name: "P",
+        notes: "",
+        owner: null,
+        start_on: null,
+        due_on: null,
+        current_status: null,
+        created_at: null,
+        modified_at: null,
+      },
+      sections: [],
+      totals: {
+        tasks: 2,
+        completed: 1,
+        pending: 1,
+        pct: 50,
+        subtasks: 2,
+        subtasksCompleted: 2,
+      },
+    };
+    const s = buildProjectSummary(project);
+    // (1 + 2) de (2 + 2) = 75%.
+    expect(s.pct).toBe(75);
+  });
 });

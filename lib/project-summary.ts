@@ -34,6 +34,13 @@ export interface ProjectSummary {
 
 export function buildProjectSummary(data: ProjectData): ProjectSummary {
   const gantt = buildGanttDataset(data);
+
+  // El % de avance cuenta TODO: tareas principales + subtareas de todos los
+  // niveles (igual que el encabezado del Gantt), para que front y PDF coincidan.
+  const allTotal = data.totals.tasks + data.totals.subtasks;
+  const allCompleted = data.totals.completed + data.totals.subtasksCompleted;
+  const pct = allTotal > 0 ? Math.round((allCompleted / allTotal) * 100) : 0;
+
   return {
     name: data.project.name || "Proyecto sin nombre",
     owner: data.project.owner?.name ?? null,
@@ -42,7 +49,7 @@ export function buildProjectSummary(data: ProjectData): ProjectSummary {
     totalTasks: data.totals.tasks,
     completedTasks: data.totals.completed,
     pendingTasks: data.totals.pending,
-    pct: data.totals.pct,
+    pct,
     totalSubtasks: data.totals.subtasks,
     completedSubtasks: data.totals.subtasksCompleted,
     sections: data.sections.map((s) => ({
