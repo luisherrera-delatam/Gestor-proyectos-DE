@@ -243,6 +243,38 @@ describe("buildGanttDataset", () => {
     expect(ds.months[0].label).toMatch(/Ene 2025/);
   });
 
+  it("computes the header % counting all tasks AND subtasks", () => {
+    const project: ProjectData = {
+      project: {
+        gid: "p",
+        name: "P",
+        notes: "",
+        owner: null,
+        start_on: null,
+        due_on: null,
+        current_status: null,
+        created_at: null,
+        modified_at: null,
+      },
+      sections: [
+        { name: "S", tasks: [task({ name: "T", start_on: "2025-01-01", due_on: "2025-01-05" })] },
+      ],
+      totals: {
+        tasks: 2,
+        completed: 1,
+        pending: 1,
+        pct: 50,
+        subtasks: 2,
+        subtasksCompleted: 2,
+      },
+    };
+    const ds = buildGanttDataset(project, new Date("2025-01-20"));
+    // (1 + 2) completadas de (2 + 2) = 3/4 = 75%.
+    expect(ds.totalTasks).toBe(4);
+    expect(ds.completedTasks).toBe(3);
+    expect(ds.pct).toBe(75);
+  });
+
   it("returns an empty dataset when there are no tasks", () => {
     const project = makeProject([]);
     const ds = buildGanttDataset(project, new Date("2025-01-10"));

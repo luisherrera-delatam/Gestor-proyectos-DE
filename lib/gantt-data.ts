@@ -283,6 +283,12 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
     };
   });
 
+  // Avance del proyecto contando TODO lo que aparece en el Gantt: tareas
+  // principales + subtareas de todos los niveles (no solo las principales).
+  const allTotal = project.totals.tasks + project.totals.subtasks;
+  const allCompleted = project.totals.completed + project.totals.subtasksCompleted;
+  const allPct = allTotal > 0 ? Math.round((allCompleted / allTotal) * 100) : 0;
+
   const months = buildMonths(minDate, maxDate);
   const dayTicks = buildDayTicks(minDate, totalDays);
 
@@ -303,9 +309,9 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
     endLabel: formatLongDate(maxDate),
     todayDay,
     todayLabel,
-    pct: project.totals.pct,
-    completedTasks: project.totals.completed,
-    totalTasks: project.totals.tasks,
+    pct: allPct,
+    completedTasks: allCompleted,
+    totalTasks: allTotal,
     skipped,
     generatedAt: now,
   };
