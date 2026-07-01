@@ -188,6 +188,34 @@ describe("buildGanttDataset", () => {
     expect(ds.skipped).toHaveLength(1);
   });
 
+  it("includes deeply nested subtasks (subtask of a subtask)", () => {
+    const project = makeProject([
+      {
+        name: "S",
+        tasks: [
+          task({
+            name: "Padre",
+            start_on: "2025-01-01",
+            due_on: "2025-01-10",
+            subtasks: [
+              task({
+                name: "Hijo",
+                start_on: "2025-01-02",
+                due_on: "2025-01-04",
+                subtasks: [task({ name: "Nieto", start_on: "2025-01-03", due_on: "2025-01-03" })],
+              }),
+            ],
+          }),
+        ],
+      },
+    ]);
+    const ds = buildGanttDataset(project, new Date("2025-01-20"));
+    expect(ds.rows.map((r) => r.taskName)).toEqual(["Padre", "Hijo", "Nieto"]);
+    expect(ds.rows[1].isSubtask).toBe(true);
+    expect(ds.rows[2].isSubtask).toBe(true);
+    expect(ds.rows[2].parentTaskName).toBe("Hijo");
+  });
+
   it("does not add subtasks if the parent has no subtasks array", () => {
     const project = makeProject([
       {

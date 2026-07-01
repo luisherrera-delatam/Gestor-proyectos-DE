@@ -179,35 +179,27 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
   const entries: Entry[] = [];
   const skipped: GanttDataset["skipped"] = [];
 
+  // Agrega la tarea y, recursivamente, TODAS sus subtareas (en cualquier nivel
+  // de anidamiento), en el orden de Asana.
+  const pushTask = (
+    sectionName: string,
+    task: AsanaTask,
+    isSubtask: boolean,
+    parentTaskName: string | null
+  ) => {
+    const { start, end } = resolveDates(task);
+    entries.push({ sectionName, task, start, end, isSubtask, parentTaskName });
+    if (!start || !end) {
+      skipped.push({ sectionName, taskName: task.name, reason: "Sin fechas" });
+    }
+    for (const sub of task.subtasks ?? []) {
+      pushTask(sectionName, sub, true, task.name);
+    }
+  };
+
   for (const section of project.sections) {
     for (const task of section.tasks) {
-      const { start, end } = resolveDates(task);
-      entries.push({
-        sectionName: section.name,
-        task,
-        start,
-        end,
-        isSubtask: false,
-        parentTaskName: null,
-      });
-      if (!start || !end) {
-        skipped.push({ sectionName: section.name, taskName: task.name, reason: "Sin fechas" });
-      }
-
-      for (const sub of task.subtasks ?? []) {
-        const { start: sStart, end: sEnd } = resolveDates(sub);
-        entries.push({
-          sectionName: section.name,
-          task: sub,
-          start: sStart,
-          end: sEnd,
-          isSubtask: true,
-          parentTaskName: task.name,
-        });
-        if (!sStart || !sEnd) {
-          skipped.push({ sectionName: section.name, taskName: sub.name, reason: "Sin fechas" });
-        }
-      }
+      pushTask(section.name, task, false, null);
     }
   }
 

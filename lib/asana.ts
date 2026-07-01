@@ -249,17 +249,29 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
     "assignee.name",
     "assignee.email",
   ].join(",");
-  await mapWithConcurrency(tasks, 8, async (t) => {
-    try {
-      const subs = await fetchAllPaginated<AsanaTask>(
-        `/tasks/${t.gid}/subtasks?opt_fields=${subFields}`,
-        token
-      );
-      t.subtasks = subs;
-    } catch {
-      t.subtasks = [];
-    }
-  });
+
+  // Las subtareas en Asana pueden anidarse en varios niveles (una subtarea
+  // puede tener sus propias subtareas). Se recorren por niveles (BFS) hasta
+  // MAX_SUBTASK_DEPTH, trayendo los hijos directos de cada nodo en cada pasada
+  // con concurrencia limitada (evita explotar el paralelismo y el rate limit).
+  const MAX_SUBTASK_DEPTH = 5;
+  let frontier: AsanaTask[] = tasks;
+  for (let depth = 0; depth < MAX_SUBTASK_DEPTH && frontier.length > 0; depth++) {
+    const childLists = await mapWithConcurrency(frontier, 8, async (t) => {
+      try {
+        const subs = await fetchAllPaginated<AsanaTask>(
+          `/tasks/${t.gid}/subtasks?opt_fields=${subFields}`,
+          token
+        );
+        t.subtasks = subs;
+        return subs;
+      } catch {
+        t.subtasks = [];
+        return [] as AsanaTask[];
+      }
+    });
+    frontier = childLists.flat();
+  }
 
   // Seed the section map in Asana's display order. Tasks land in the right
   // bucket below, so the final array preserves that order.
@@ -281,14 +293,17 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
   // want to render in the documents.
   const sections = Array.from(sectionMap.values()).filter((s) => s.tasks.length > 0);
 
+  // Contar subtareas en todos los niveles (recursivo).
   let subTotal = 0;
   let subCompleted = 0;
-  for (const t of tasks) {
+  const countSubs = (t: AsanaTask) => {
     for (const s of t.subtasks || []) {
       subTotal++;
       if (s.completed) subCompleted++;
+      countSubs(s);
     }
-  }
+  };
+  for (const t of tasks) countSubs(t);
   const completed = tasks.filter((t) => t.completed).length;
   const pending = tasks.length - completed;
   const pct = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;

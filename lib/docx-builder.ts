@@ -142,12 +142,13 @@ function taskWithSubtasks(t: AsanaTask): Paragraph[] {
   const out: Paragraph[] = [
     new Paragraph({ spacing: { after: 40 }, children: [txt(t.name, { size: 18 })] }),
   ];
-  if (t.subtasks && t.subtasks.length > 0) {
-    for (const s of t.subtasks) {
+  // Subtareas en todos los niveles, con sangría según la profundidad.
+  const addSubs = (subs: AsanaTask[] | undefined, level: number) => {
+    for (const s of subs ?? []) {
       const mark = s.completed ? "✓ " : "○ ";
       out.push(
         new Paragraph({
-          indent: { left: 200 },
+          indent: { left: 200 * level },
           spacing: { after: 20 },
           children: [
             new TextRun({
@@ -159,8 +160,10 @@ function taskWithSubtasks(t: AsanaTask): Paragraph[] {
           ],
         })
       );
+      addSubs(s.subtasks, level + 1);
     }
-  }
+  };
+  addSubs(t.subtasks, 1);
   return out;
 }
 
