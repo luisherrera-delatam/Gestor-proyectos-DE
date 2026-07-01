@@ -71,8 +71,8 @@ describe("buildProjectSummary", () => {
       taskCount: 2,
       completedCount: 1,
     });
-    // 2 tareas con fecha → 2 barras; 1 sin fecha → omitida.
-    expect(s.ganttRows).toBe(2);
+    // Las 3 tareas aparecen como filas; la 1 sin fecha se cuenta en skipped.
+    expect(s.ganttRows).toBe(3);
     expect(s.ganttSkipped).toBe(1);
   });
 

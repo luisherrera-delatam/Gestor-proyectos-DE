@@ -823,12 +823,11 @@ export default function Home() {
                 )}
 
                 <p className="text-[11px] text-dxgray dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2">
-                  En el Gantt aparecerán <strong>{preview.ganttRows}</strong> barras
+                  En el Gantt aparecen <strong>{preview.ganttRows}</strong> tareas/subtareas
                   {preview.ganttSkipped > 0 && (
                     <>
-                      ; <strong>{preview.ganttSkipped}</strong> tarea
-                      {preview.ganttSkipped === 1 ? "" : "s"} sin fecha se
-                      {preview.ganttSkipped === 1 ? " omitirá" : " omitirán"}
+                      {" "}(<strong>{preview.ganttSkipped}</strong> sin fecha, se
+                      muestra{preview.ganttSkipped === 1 ? "" : "n"} sin barra)
                     </>
                   )}
                   .

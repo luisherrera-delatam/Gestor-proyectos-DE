@@ -241,6 +241,14 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: GRAY,
   },
+  noDateLabel: {
+    position: "absolute",
+    top: 8,
+    left: 6,
+    fontSize: 7,
+    color: GRAY,
+    fontStyle: "italic",
+  },
 
   // Grid lines under the rows
   gridLayer: {
@@ -499,12 +507,20 @@ function RenderItem({ item, dataset, zebra }: { item: Renderable; dataset: Gantt
         <Text style={styles.assigneeText}>{row.assignee || "—"}</Text>
       </View>
       <View style={styles.timelineCell}>
-        <View style={[barStyle, { left, width, backgroundColor: fill }]} />
-        {insideLabelFits ? (
-          <Text style={[labelStyle, { left: left + 6 }]}>{row.rangeLabel}</Text>
-        ) : outsideLabelFits ? (
-          <Text style={[styles.barLabelOutside, { left: left + width + 6 }]}>{row.rangeLabel}</Text>
-        ) : null}
+        {row.hasDates ? (
+          <>
+            <View style={[barStyle, { left, width, backgroundColor: fill }]} />
+            {insideLabelFits ? (
+              <Text style={[labelStyle, { left: left + 6 }]}>{row.rangeLabel}</Text>
+            ) : outsideLabelFits ? (
+              <Text style={[styles.barLabelOutside, { left: left + width + 6 }]}>
+                {row.rangeLabel}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.noDateLabel}>— sin fecha —</Text>
+        )}
       </View>
     </View>
   );
@@ -620,29 +636,9 @@ function GanttPage({
   );
 }
 
-function SkippedPage({ dataset, totalPages }: { dataset: GanttDataset; totalPages: number }) {
-  return (
-    <Page size={{ width: PAGE_W, height: PAGE_H }} style={styles.page}>
-      <HeaderBlock dataset={dataset} page={totalPages} pages={totalPages} />
-      <Text style={styles.skippedTitle}>Tareas omitidas (sin fechas asignadas)</Text>
-      <Text style={styles.skippedSub}>
-        Las siguientes {dataset.skipped.length} tareas no se muestran en el diagrama porque no tienen
-        fecha de inicio ni de vencimiento en Asana.
-      </Text>
-      {dataset.skipped.map((s, i) => (
-        <Text key={i} style={styles.skippedItem}>
-          • [{s.sectionName}] {s.taskName}
-        </Text>
-      ))}
-      <Footer dataset={dataset} />
-    </Page>
-  );
-}
-
 export async function buildGanttPdf(dataset: GanttDataset): Promise<Buffer> {
   const pages = paginateRows(dataset.rows);
-  const hasSkipped = dataset.skipped.length > 0;
-  const totalPages = pages.length + (hasSkipped ? 1 : 0);
+  const totalPages = pages.length;
 
   const doc = (
     <Document
@@ -659,7 +655,6 @@ export async function buildGanttPdf(dataset: GanttDataset): Promise<Buffer> {
           totalPages={totalPages}
         />
       ))}
-      {hasSkipped ? <SkippedPage dataset={dataset} totalPages={totalPages} /> : null}
     </Document>
   );
 

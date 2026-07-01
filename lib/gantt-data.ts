@@ -4,6 +4,8 @@ export interface GanttRow {
   sectionName: string;
   taskName: string;
   assignee: string | null;
+  /** Si la tarea/subtarea tiene fechas (y por tanto barra). */
+  hasDates: boolean;
   startDay: number;
   endDay: number;
   durationDays: number;
@@ -141,7 +143,7 @@ function buildDayTicks(start: Date, totalDays: number): GanttDayTick[] {
   return ticks;
 }
 
-interface CandidateRow {
+interface Entry {
   sectionName: string;
   task: AsanaTask;
   start: Date | null;
@@ -171,38 +173,30 @@ function resolveDates(task: AsanaTask): { start: Date | null; end: Date | null }
 }
 
 export function buildGanttDataset(project: ProjectData, now: Date = new Date()): GanttDataset {
-  const candidates: CandidateRow[] = [];
+  // TODAS las tareas y subtareas se incluyen como filas, en el orden de Asana
+  // (sección → tarea → sus subtareas). Las que no tienen fechas aparecen igual,
+  // sin barra, marcadas como "sin fecha".
+  const entries: Entry[] = [];
   const skipped: GanttDataset["skipped"] = [];
 
   for (const section of project.sections) {
     for (const task of section.tasks) {
       const { start, end } = resolveDates(task);
-
+      entries.push({
+        sectionName: section.name,
+        task,
+        start,
+        end,
+        isSubtask: false,
+        parentTaskName: null,
+      });
       if (!start || !end) {
-        skipped.push({
-          sectionName: section.name,
-          taskName: task.name,
-          reason: "Sin fechas asignadas",
-        });
-      } else {
-        candidates.push({
-          sectionName: section.name,
-          task,
-          start,
-          end,
-          isSubtask: false,
-          parentTaskName: null,
-        });
+        skipped.push({ sectionName: section.name, taskName: task.name, reason: "Sin fechas" });
       }
 
-      // Subtasks with dates are added as their own rows, directly after their
-      // parent. Subtasks without dates are silently ignored — checklist-style
-      // items shouldn't clutter the diagram.
-      const subtasks = task.subtasks ?? [];
-      for (const sub of subtasks) {
+      for (const sub of task.subtasks ?? []) {
         const { start: sStart, end: sEnd } = resolveDates(sub);
-        if (!sStart || !sEnd) continue;
-        candidates.push({
+        entries.push({
           sectionName: section.name,
           task: sub,
           start: sStart,
@@ -210,77 +204,78 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
           isSubtask: true,
           parentTaskName: task.name,
         });
+        if (!sStart || !sEnd) {
+          skipped.push({ sectionName: section.name, taskName: sub.name, reason: "Sin fechas" });
+        }
       }
     }
   }
 
-  if (candidates.length === 0) {
-    const today = startOfDay(now);
-    const end = addDays(today, 6);
-    return {
-      projectName: project.project.name || "Proyecto",
-      rows: [],
-      totalDays: 6,
-      months: buildMonths(today, end),
-      dayTicks: buildDayTicks(today, 6),
-      startDate: today,
-      endDate: end,
-      startLabel: formatLongDate(today),
-      endLabel: formatLongDate(end),
-      todayDay: 0,
-      todayLabel: formatShortDate(today),
-      pct: project.totals.pct,
-      completedTasks: project.totals.completed,
-      totalTasks: project.totals.tasks,
-      skipped,
-      generatedAt: now,
-    };
-  }
+  const today = startOfDay(now);
 
-  let minDate = candidates[0].start!;
-  let maxDate = candidates[0].end!;
-  for (const c of candidates) {
-    if (c.start! < minDate) minDate = c.start!;
-    if (c.end! > maxDate) maxDate = c.end!;
-  }
-
-  minDate = startOfDay(minDate);
-  maxDate = startOfDay(maxDate);
-  if (daysBetween(minDate, maxDate) < 6) {
-    maxDate = addDays(minDate, 6);
+  // Rango de fechas a partir de las entradas que SÍ tienen fechas.
+  const dated = entries.filter((e) => e.start && e.end);
+  let minDate: Date;
+  let maxDate: Date;
+  if (dated.length > 0) {
+    minDate = startOfDay(dated[0].start!);
+    maxDate = startOfDay(dated[0].end!);
+    for (const e of dated) {
+      const s = startOfDay(e.start!);
+      const en = startOfDay(e.end!);
+      if (s < minDate) minDate = s;
+      if (en > maxDate) maxDate = en;
+    }
+    if (daysBetween(minDate, maxDate) < 6) maxDate = addDays(minDate, 6);
+  } else {
+    minDate = today;
+    maxDate = addDays(today, 6);
   }
 
   const totalDays = daysBetween(minDate, maxDate);
-  const today = startOfDay(now);
 
-  // Rows are built in the order Asana returns them (sections from the
-  // /sections endpoint, tasks in their position within each section, subtasks
-  // right after their parent). No alphabetical sort — that would override
-  // the user's manual ordering in Asana.
-  const rows: GanttRow[] = candidates.map((c) => {
-    const startDay = Math.max(0, daysBetween(minDate, c.start!));
-    const endDay = Math.min(totalDays, daysBetween(minDate, c.end!));
-    const durationDays = Math.max(1, endDay - startDay + 1);
-    const milestone = c.start!.getTime() === c.end!.getTime();
-    const overdue = !c.task.completed && c.end! < today;
-    const startLabel = formatShortDate(c.start!);
-    const endLabel = formatShortDate(c.end!);
-    const rangeLabel = milestone ? startLabel : `${startLabel} → ${endLabel}`;
+  const rows: GanttRow[] = entries.map((e) => {
+    const base = {
+      sectionName: e.sectionName,
+      taskName: e.task.name,
+      assignee: e.task.assignee?.name ?? null,
+      completed: e.task.completed,
+      isSubtask: e.isSubtask,
+      parentTaskName: e.parentTaskName,
+    };
+    if (e.start && e.end) {
+      const startDay = Math.max(0, daysBetween(minDate, e.start));
+      const endDay = Math.min(totalDays, daysBetween(minDate, e.end));
+      const durationDays = Math.max(1, endDay - startDay + 1);
+      const milestone = e.start.getTime() === e.end.getTime();
+      const overdue = !e.task.completed && e.end < today;
+      const startLabel = formatShortDate(e.start);
+      const endLabel = formatShortDate(e.end);
+      const rangeLabel = milestone ? startLabel : `${startLabel} → ${endLabel}`;
+      return {
+        ...base,
+        hasDates: true,
+        startDay,
+        endDay,
+        durationDays,
+        milestone,
+        overdue,
+        startLabel,
+        endLabel,
+        rangeLabel,
+      };
+    }
     return {
-      sectionName: c.sectionName,
-      taskName: c.task.name,
-      assignee: c.task.assignee?.name ?? null,
-      startDay,
-      endDay,
-      durationDays,
-      completed: c.task.completed,
-      overdue,
-      milestone,
-      isSubtask: c.isSubtask,
-      parentTaskName: c.parentTaskName,
-      startLabel,
-      endLabel,
-      rangeLabel,
+      ...base,
+      hasDates: false,
+      startDay: 0,
+      endDay: 0,
+      durationDays: 0,
+      milestone: false,
+      overdue: false,
+      startLabel: "",
+      endLabel: "",
+      rangeLabel: "Sin fecha",
     };
   });
 

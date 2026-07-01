@@ -87,12 +87,14 @@ describe("buildGanttDataset", () => {
     expect(ds.skipped).toHaveLength(0);
   });
 
-  it("moves tasks without any usable date into skipped", () => {
+  it("shows tasks without dates as rows (no bar) and counts them in skipped", () => {
     const project = makeProject([
       { name: "Pendientes", tasks: [task({ name: "Sin fechas" })] },
     ]);
     const ds = buildGanttDataset(project, new Date("2025-01-20"));
-    expect(ds.rows).toHaveLength(0);
+    expect(ds.rows).toHaveLength(1);
+    expect(ds.rows[0].hasDates).toBe(false);
+    expect(ds.rows[0].rangeLabel).toBe("Sin fecha");
     expect(ds.skipped).toHaveLength(1);
     expect(ds.skipped[0].taskName).toBe("Sin fechas");
   });
@@ -155,7 +157,7 @@ describe("buildGanttDataset", () => {
     expect(ds.rows[1].sectionName).toBe("Alfa");
   });
 
-  it("expands subtasks with dates as separate rows after their parent", () => {
+  it("shows all subtasks (with and without dates) as rows after their parent", () => {
     const project = makeProject([
       {
         name: "Infra",
@@ -173,14 +175,17 @@ describe("buildGanttDataset", () => {
       },
     ]);
     const ds = buildGanttDataset(project, new Date("2025-01-20"));
-    expect(ds.rows).toHaveLength(2);
+    // Padre + 2 subtareas = 3 filas, todas presentes.
+    expect(ds.rows).toHaveLength(3);
     expect(ds.rows[0].taskName).toBe("Padre");
-    expect(ds.rows[0].isSubtask).toBe(false);
     expect(ds.rows[1].taskName).toBe("Sub con fechas");
     expect(ds.rows[1].isSubtask).toBe(true);
-    expect(ds.rows[1].parentTaskName).toBe("Padre");
-    // Subtask without dates is silently ignored (not added to skipped).
-    expect(ds.skipped).toHaveLength(0);
+    expect(ds.rows[1].hasDates).toBe(true);
+    expect(ds.rows[2].taskName).toBe("Sub sin fechas");
+    expect(ds.rows[2].isSubtask).toBe(true);
+    expect(ds.rows[2].hasDates).toBe(false);
+    // La subtarea sin fecha se cuenta en skipped (informativo) pero igual aparece.
+    expect(ds.skipped).toHaveLength(1);
   });
 
   it("does not add subtasks if the parent has no subtasks array", () => {

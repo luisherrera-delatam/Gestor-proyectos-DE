@@ -101,7 +101,7 @@ describe("buildGanttPdf", () => {
     expect(buffer.length).toBeGreaterThan(4000);
   });
 
-  it("renders a skipped-tasks page when some tasks have no dates", async () => {
+  it("includes tasks without dates as rows (no separate skipped page)", async () => {
     const project = makeProject([
       {
         name: "Mixta",
@@ -113,6 +113,9 @@ describe("buildGanttPdf", () => {
       },
     ]);
     const dataset = buildGanttDataset(project, new Date("2025-01-20"));
+    // Las 3 tareas aparecen como filas; las 2 sin fecha se cuentan en skipped.
+    expect(dataset.rows).toHaveLength(3);
+    expect(dataset.rows.filter((r) => !r.hasDates)).toHaveLength(2);
     expect(dataset.skipped).toHaveLength(2);
     const buffer = await buildGanttPdf(dataset);
     expect(isPdf(buffer)).toBe(true);
