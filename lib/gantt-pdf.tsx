@@ -195,9 +195,8 @@ const styles = StyleSheet.create({
     borderRightWidth: 0.5,
     borderRightColor: GRID,
   },
-  taskCellSub: {
-    paddingLeft: 28,
-  },
+  // Tarea principal (padre): negrita, para distinguirla de sus subtareas.
+  taskTextParent: { fontSize: 9, color: NAVY, fontFamily: "Helvetica-Bold", lineHeight: 1.3 },
   taskText: { fontSize: 9, color: TEXT, lineHeight: 1.3 },
   taskTextSub: { fontSize: 8, color: GRAY, lineHeight: 1.3 },
   assigneeCell: {
@@ -492,13 +491,15 @@ function RenderItem({ item, dataset, zebra }: { item: Renderable; dataset: Gantt
   const fill = colorFor(row);
   const insideLabelFits = width > 50 && !row.isSubtask;
   const outsideLabelFits = !insideLabelFits && left + width + 60 < TIMELINE_W;
-  const taskCellStyle = row.isSubtask ? [styles.taskCell, styles.taskCellSub] : styles.taskCell;
-  const taskTextStyle = row.isSubtask ? styles.taskTextSub : styles.taskText;
+  // Sangría por nivel de anidamiento (padre 12 pt, +14 pt por cada nivel).
+  const indentLeft = 12 + row.depth * 14;
+  const taskTextStyle =
+    row.depth === 0 ? styles.taskTextParent : styles.taskTextSub;
   const barStyle = row.isSubtask ? styles.barSub : styles.bar;
   const labelStyle = row.isSubtask ? styles.barLabelOutside : styles.barLabelInside;
   return (
     <View style={zebra ? [styles.row, styles.rowZebra] : styles.row} wrap={false}>
-      <View style={taskCellStyle}>
+      <View style={[styles.taskCell, { paddingLeft: indentLeft }]}>
         <Text style={taskTextStyle}>
           {row.isSubtask ? `↳ ${row.taskName}` : row.taskName}
         </Text>

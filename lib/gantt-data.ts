@@ -13,6 +13,8 @@ export interface GanttRow {
   overdue: boolean;
   milestone: boolean;
   isSubtask: boolean;
+  /** Nivel de anidamiento: 0 = tarea principal, 1 = subtarea, 2 = sub-subtarea… */
+  depth: number;
   parentTaskName: string | null;
   startLabel: string;
   endLabel: string;
@@ -149,6 +151,7 @@ interface Entry {
   start: Date | null;
   end: Date | null;
   isSubtask: boolean;
+  depth: number;
   parentTaskName: string | null;
 }
 
@@ -184,22 +187,30 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
   const pushTask = (
     sectionName: string,
     task: AsanaTask,
-    isSubtask: boolean,
+    depth: number,
     parentTaskName: string | null
   ) => {
     const { start, end } = resolveDates(task);
-    entries.push({ sectionName, task, start, end, isSubtask, parentTaskName });
+    entries.push({
+      sectionName,
+      task,
+      start,
+      end,
+      isSubtask: depth > 0,
+      depth,
+      parentTaskName,
+    });
     if (!start || !end) {
       skipped.push({ sectionName, taskName: task.name, reason: "Sin fechas" });
     }
     for (const sub of task.subtasks ?? []) {
-      pushTask(sectionName, sub, true, task.name);
+      pushTask(sectionName, sub, depth + 1, task.name);
     }
   };
 
   for (const section of project.sections) {
     for (const task of section.tasks) {
-      pushTask(section.name, task, false, null);
+      pushTask(section.name, task, 0, null);
     }
   }
 
@@ -233,6 +244,7 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
       assignee: e.task.assignee?.name ?? null,
       completed: e.task.completed,
       isSubtask: e.isSubtask,
+      depth: e.depth,
       parentTaskName: e.parentTaskName,
     };
     if (e.start && e.end) {

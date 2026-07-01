@@ -211,6 +211,7 @@ describe("buildGanttDataset", () => {
     ]);
     const ds = buildGanttDataset(project, new Date("2025-01-20"));
     expect(ds.rows.map((r) => r.taskName)).toEqual(["Padre", "Hijo", "Nieto"]);
+    expect(ds.rows.map((r) => r.depth)).toEqual([0, 1, 2]);
     expect(ds.rows[1].isSubtask).toBe(true);
     expect(ds.rows[2].isSubtask).toBe(true);
     expect(ds.rows[2].parentTaskName).toBe("Hijo");
