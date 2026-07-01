@@ -497,11 +497,15 @@ function RenderItem({ item, dataset, zebra }: { item: Renderable; dataset: Gantt
     row.depth === 0 ? styles.taskTextParent : styles.taskTextSub;
   const barStyle = row.isSubtask ? styles.barSub : styles.bar;
   const labelStyle = row.isSubtask ? styles.barLabelOutside : styles.barLabelInside;
+  // Prefijo por nivel — SOLO caracteres de Latin-1 (garantizados en la fuente
+  // estándar del PDF). Las flechas Unicode (↳ →) NO están y salían como basura.
+  const prefix = row.depth === 0 ? "" : row.depth === 1 ? "· " : "» ";
   return (
     <View style={zebra ? [styles.row, styles.rowZebra] : styles.row} wrap={false}>
       <View style={[styles.taskCell, { paddingLeft: indentLeft }]}>
         <Text style={taskTextStyle}>
-          {row.isSubtask ? `↳ ${row.taskName}` : row.taskName}
+          {prefix}
+          {row.taskName}
         </Text>
       </View>
       <View style={styles.assigneeCell}>

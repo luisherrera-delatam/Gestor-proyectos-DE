@@ -255,7 +255,7 @@ export function buildGanttDataset(project: ProjectData, now: Date = new Date()):
       const overdue = !e.task.completed && e.end < today;
       const startLabel = formatShortDate(e.start);
       const endLabel = formatShortDate(e.end);
-      const rangeLabel = milestone ? startLabel : `${startLabel} → ${endLabel}`;
+      const rangeLabel = milestone ? startLabel : `${startLabel} – ${endLabel}`;
       return {
         ...base,
         hasDates: true,
