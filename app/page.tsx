@@ -762,27 +762,67 @@ export default function Home() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 text-center">
                   <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
                     <div className="text-lg font-semibold text-dxnavy dark:text-gray-100">
-                      {preview.totalTasks}
+                      {preview.totalTasks + preview.totalSubtasks}
                     </div>
-                    <div className="text-[11px] text-dxgray dark:text-gray-400">Tareas</div>
+                    <div className="text-[11px] text-dxgray dark:text-gray-400">Total ítems</div>
                   </div>
                   <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
                     <div className="text-lg font-semibold text-green-700 dark:text-green-400">
-                      {preview.completedTasks}
+                      {preview.completedTasks + preview.completedSubtasks}
                     </div>
                     <div className="text-[11px] text-dxgray dark:text-gray-400">Completadas</div>
                   </div>
                   <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
                     <div className="text-lg font-semibold text-amber-600 dark:text-amber-400">
-                      {preview.pendingTasks}
+                      {preview.totalTasks +
+                        preview.totalSubtasks -
+                        preview.completedTasks -
+                        preview.completedSubtasks}
                     </div>
                     <div className="text-[11px] text-dxgray dark:text-gray-400">Pendientes</div>
                   </div>
                   <div className="rounded-md bg-white dark:bg-[#23272f] py-2">
-                    <div className="text-lg font-semibold text-dxnavy dark:text-gray-100">
-                      {preview.totalSubtasks}
+                    <div className="text-lg font-semibold text-dxnavy dark:text-dxblue">
+                      {preview.totalSubtasks > 0
+                        ? `${preview.completedSubtasks}/${preview.totalSubtasks}`
+                        : "0"}
                     </div>
                     <div className="text-[11px] text-dxgray dark:text-gray-400">Subtareas</div>
+                  </div>
+                </div>
+
+                {/* Desglose: tareas principales vs subtareas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 text-[11px]">
+                  <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5">
+                    <span className="text-dxgray dark:text-gray-400">Tareas: </span>
+                    <span className="text-green-700 dark:text-green-400 font-medium">
+                      {preview.completedTasks} compl.
+                    </span>
+                    {" · "}
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      {preview.pendingTasks} pend.
+                    </span>
+                    <span className="text-dxgray dark:text-gray-500"> de {preview.totalTasks}</span>
+                  </div>
+                  <div className="rounded-md border border-gray-200 dark:border-gray-700 px-2.5 py-1.5">
+                    <span className="text-dxgray dark:text-gray-400">Subtareas: </span>
+                    {preview.totalSubtasks > 0 ? (
+                      <>
+                        <span className="text-green-700 dark:text-green-400 font-medium">
+                          {preview.completedSubtasks} compl.
+                        </span>
+                        {" · "}
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          {preview.totalSubtasks - preview.completedSubtasks} pend.
+                        </span>
+                        <span className="text-dxgray dark:text-gray-500">
+                          {" "}
+                          de {preview.totalSubtasks}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-dxgray dark:text-gray-500">sin subtareas</span>
+                    )}
                   </div>
                 </div>
 
