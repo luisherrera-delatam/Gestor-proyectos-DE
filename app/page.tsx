@@ -227,6 +227,10 @@ export default function Home() {
 
   // Sync the toggle with the class applied by the anti-flash script in layout.tsx.
   useEffect(() => {
+    // El <html> es un sistema externo: la clase la pone el script anti-flash
+    // antes de hidratar, y en el servidor no existe document, así que el valor
+    // no se puede calcular en render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDarkMode(document.documentElement.classList.contains("dark"));
   }, []);
 
@@ -245,6 +249,9 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const auth = params.get("auth");
     if (auth === "error") {
+      // La URL de retorno del OAuth es un sistema externo que solo se puede
+      // leer ya montados (y se limpia justo debajo con replaceState).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError("No se pudo conectar con Asana. Inténtalo de nuevo.");
     }
     if (auth) {
@@ -491,8 +498,11 @@ export default function Home() {
   }
 
   // Auto-cargar la lista de proyectos en cuanto haya sesión OAuth.
+  // `connected` no viene de un evento del usuario sino de /api/auth/status, que
+  // se resuelve async, así que el efecto es el único punto donde engancharlo.
   useEffect(() => {
     if (connected && !workspaces && !projectsLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadProjects();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -501,6 +511,7 @@ export default function Home() {
   // Auto-cargar la vista previa al elegir un proyecto de la lista.
   useEffect(() => {
     if (selectedProjectGid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadPreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

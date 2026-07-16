@@ -1,5 +1,9 @@
 allowBuilds:
   sharp: true
+  # El binario nativo llega como dependencia opcional por plataforma
+  # (@unrs/resolver-binding-*), asi que su script de instalacion —que solo es un
+  # fallback para descargarlo— no hace falta. Menos scripts ejecutados, mejor.
+  unrs-resolver: false
 
 minimumReleaseAgeExclude:
   - '@types/react@19.2.17'

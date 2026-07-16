@@ -389,10 +389,6 @@ function colorFor(row: GanttRow): string {
   return NAVY;
 }
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max - 1) + "…" : s;
-}
-
 function estimateLines(text: string, charsPerLine: number): number {
   if (!text) return 1;
   // Honor manual line breaks plus wrap by character count

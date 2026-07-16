@@ -20,8 +20,6 @@ import {
   TableCell,
   TableRow,
   WidthType,
-  ShadingType,
-  VerticalAlign,
 } from "docx";
 import type { ProjectData } from "./asana";
 import {
@@ -32,11 +30,9 @@ import {
   PARAGRAPH_STYLES,
   bullet,
   buildCover,
-  cellBorders,
   contentSectionProps,
   coverSectionProps,
   fmtDate,
-  fmtToday,
   h1,
   h2,
   kvTable,
