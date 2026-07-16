@@ -322,6 +322,67 @@ function dayToX(day: number, totalDays: number): number {
   return (day / totalDays) * TIMELINE_W;
 }
 
+/** Separación entre la barra y la etiqueta de fechas cuando va por fuera. */
+const LABEL_GAP = 6;
+/** Holgura mínima que debe sobrar dentro de la barra para meter la etiqueta. */
+const LABEL_INSIDE_PAD = 12;
+
+/**
+ * Ancho aproximado de la etiqueta de fechas en Helvetica 7pt.
+ *
+ * El caso más ancho por carácter son los dígitos y las mayúsculas (~0.56–0.72em,
+ * es decir 3.9–5 pt a 7pt). 4 pt por carácter sobreestima un poco a propósito:
+ * si nos quedáramos cortos, react-pdf partiría la etiqueta en dos renglones.
+ */
+export function estimateLabelWidth(label: string): number {
+  return Math.ceil(label.length * 4) + 2;
+}
+
+export interface LabelPlacement {
+  /** "inside" = texto blanco sobre la barra; "right"/"left" = texto gris fuera. */
+  mode: "inside" | "right" | "left";
+  x: number;
+  width: number;
+  align: "left" | "right";
+}
+
+/**
+ * Decide dónde dibujar la etiqueta de fechas de una barra.
+ *
+ * Se prueban las posiciones en orden de preferencia y SIEMPRE se devuelve una:
+ * antes, si no cabía a la derecha la etiqueta no se dibujaba y la tarea quedaba
+ * sin fecha visible (típico en las barras que llegan al final del diagrama).
+ */
+export function resolveLabelPlacement(opts: {
+  left: number;
+  width: number;
+  label: string;
+  isSubtask: boolean;
+  timelineWidth?: number;
+}): LabelPlacement {
+  const { left, width, label, isSubtask } = opts;
+  const timelineWidth = opts.timelineWidth ?? TIMELINE_W;
+  const w = estimateLabelWidth(label);
+
+  // 1. Dentro de la barra. Solo para tareas padre: la barra de una subtarea es
+  //    demasiado delgada para que el texto blanco encima se lea bien.
+  if (!isSubtask && width >= w + LABEL_INSIDE_PAD) {
+    return { mode: "inside", x: left + 6, width: w, align: "left" };
+  }
+  // 2. A la derecha de la barra (lo habitual).
+  if (left + width + LABEL_GAP + w <= timelineWidth) {
+    return { mode: "right", x: left + width + LABEL_GAP, width: w, align: "left" };
+  }
+  // 3. La barra llega al final del diagrama: la fecha se va a la izquierda,
+  //    pegada al inicio de la barra.
+  if (left - LABEL_GAP - w >= 0) {
+    return { mode: "left", x: left - LABEL_GAP - w, width: w, align: "right" };
+  }
+  // 4. La barra ocupa casi todo el ancho y no hay margen a ningún lado: la
+  //    única opción es dentro (ahí sobra espacio de sobra).
+  return { mode: "inside", x: left + 6, width: w, align: "left" };
+}
+
 function colorFor(row: GanttRow): string {
   if (row.completed) return COMPLETED;
   if (row.overdue) return OVERDUE;
@@ -489,14 +550,19 @@ function RenderItem({ item, dataset, zebra }: { item: Renderable; dataset: Gantt
   const right = dayToX(row.endDay + 1, dataset.totalDays);
   const width = Math.max(3, right - left);
   const fill = colorFor(row);
-  const insideLabelFits = width > 50 && !row.isSubtask;
-  const outsideLabelFits = !insideLabelFits && left + width + 60 < TIMELINE_W;
+  const label = row.hasDates
+    ? resolveLabelPlacement({
+        left,
+        width,
+        label: row.rangeLabel,
+        isSubtask: row.isSubtask,
+      })
+    : null;
   // Sangría por nivel de anidamiento (padre 12 pt, +14 pt por cada nivel).
   const indentLeft = 12 + row.depth * 14;
   const taskTextStyle =
     row.depth === 0 ? styles.taskTextParent : styles.taskTextSub;
   const barStyle = row.isSubtask ? styles.barSub : styles.bar;
-  const labelStyle = row.isSubtask ? styles.barLabelOutside : styles.barLabelInside;
   // Prefijo por nivel — SOLO caracteres de Latin-1 (garantizados en la fuente
   // estándar del PDF). Las flechas Unicode (↳ →) NO están y salían como basura.
   const prefix = row.depth === 0 ? "" : row.depth === 1 ? "· " : "» ";
@@ -512,16 +578,17 @@ function RenderItem({ item, dataset, zebra }: { item: Renderable; dataset: Gantt
         <Text style={styles.assigneeText}>{row.assignee || "—"}</Text>
       </View>
       <View style={styles.timelineCell}>
-        {row.hasDates ? (
+        {row.hasDates && label ? (
           <>
             <View style={[barStyle, { left, width, backgroundColor: fill }]} />
-            {insideLabelFits ? (
-              <Text style={[labelStyle, { left: left + 6 }]}>{row.rangeLabel}</Text>
-            ) : outsideLabelFits ? (
-              <Text style={[styles.barLabelOutside, { left: left + width + 6 }]}>
-                {row.rangeLabel}
-              </Text>
-            ) : null}
+            <Text
+              style={[
+                label.mode === "inside" ? styles.barLabelInside : styles.barLabelOutside,
+                { left: label.x, width: label.width, textAlign: label.align },
+              ]}
+            >
+              {row.rangeLabel}
+            </Text>
           </>
         ) : (
           <Text style={styles.noDateLabel}>— sin fecha —</Text>

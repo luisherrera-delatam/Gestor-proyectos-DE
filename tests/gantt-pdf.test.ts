@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildGanttDataset } from "@/lib/gantt-data";
-import { buildGanttPdf } from "@/lib/gantt-pdf";
+import { buildGanttPdf, estimateLabelWidth, resolveLabelPlacement } from "@/lib/gantt-pdf";
 import type { AsanaTask, ProjectData, SectionGroup } from "@/lib/asana";
 
 function task(overrides: Partial<AsanaTask> & { name: string }): AsanaTask {
@@ -119,5 +119,76 @@ describe("buildGanttPdf", () => {
     expect(dataset.skipped).toHaveLength(2);
     const buffer = await buildGanttPdf(dataset);
     expect(isPdf(buffer)).toBe(true);
+  });
+});
+
+describe("resolveLabelPlacement", () => {
+  // Ancho real de la línea de tiempo en el PDF (A4 apaisado menos las columnas
+  // de Tarea y Responsable): 842 - 58*2 - (230 + 110).
+  const TL = 386;
+  const RANGE = "12 Ene – 15 Feb"; // la etiqueta más larga habitual
+  const place = (o: Partial<Parameters<typeof resolveLabelPlacement>[0]>) =>
+    resolveLabelPlacement({
+      left: 0,
+      width: 40,
+      label: RANGE,
+      isSubtask: false,
+      timelineWidth: TL,
+      ...o,
+    });
+
+  it("pone la etiqueta dentro cuando la barra de una tarea padre es ancha", () => {
+    const p = place({ left: 100, width: 140 });
+    expect(p.mode).toBe("inside");
+    expect(p.x).toBe(106);
+  });
+
+  it("pone la etiqueta a la derecha de una barra corta con espacio de sobra", () => {
+    const p = place({ left: 100, width: 40 });
+    expect(p.mode).toBe("right");
+    expect(p.x).toBe(146);
+    expect(p.align).toBe("left");
+  });
+
+  it("pone la etiqueta a la IZQUIERDA cuando la barra llega al final del diagrama", () => {
+    // Barra estrecha (no cabe la etiqueta dentro) y pegada al borde derecho:
+    // antes este caso no dibujaba nada y la tarea quedaba sin fecha visible.
+    const p = place({ left: 340, width: 40 });
+    expect(p.mode).toBe("left");
+    expect(p.align).toBe("right");
+    expect(p.x).toBeGreaterThanOrEqual(0);
+    expect(p.x + p.width).toBeLessThanOrEqual(340);
+  });
+
+  it("nunca deja sin etiqueta a una subtarea pegada al borde derecho", () => {
+    const p = place({ left: 340, width: 40, isSubtask: true });
+    expect(p.mode).toBe("left");
+    expect(p.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it("no mete la etiqueta dentro de la barra delgada de una subtarea", () => {
+    const p = place({ left: 100, width: 140, isSubtask: true });
+    expect(p.mode).toBe("right");
+  });
+
+  it("cae dentro de la barra cuando ésta ocupa casi toda la línea de tiempo", () => {
+    const p = place({ left: 4, width: 378 });
+    expect(p.mode).toBe("inside");
+  });
+
+  it("mantiene la etiqueta dentro de la línea de tiempo en cualquier posición", () => {
+    for (let left = 0; left <= TL; left += 7) {
+      for (const width of [3, 20, 60, 150]) {
+        for (const isSubtask of [false, true]) {
+          const p = place({ left, width: Math.min(width, TL - left), isSubtask });
+          expect(p.x).toBeGreaterThanOrEqual(0);
+          expect(p.x + p.width).toBeLessThanOrEqual(TL + 1);
+        }
+      }
+    }
+  });
+
+  it("una etiqueta de hito (una sola fecha) ocupa menos ancho que un rango", () => {
+    expect(estimateLabelWidth("15 Ene")).toBeLessThan(estimateLabelWidth(RANGE));
   });
 });
