@@ -19,7 +19,8 @@ const MARGIN_X = 58;
 const MARGIN_TOP = 46;
 const MARGIN_BOTTOM = 50;
 
-const HEADER_H = 56;
+// Alto del encabezado: lo marca el logo (52 pt) + los 12 pt de paddingBottom.
+const HEADER_H = 64;
 const TIMELINE_HEAD_MONTH_H = 18;
 const TIMELINE_HEAD_DAY_H = 14;
 const TIMELINE_HEAD_H = TIMELINE_HEAD_MONTH_H + TIMELINE_HEAD_DAY_H;
@@ -80,8 +81,8 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   brandLogo: {
-    width: 38,
-    height: 38,
+    width: 52,
+    height: 52,
     marginRight: 10,
     objectFit: "contain",
   },

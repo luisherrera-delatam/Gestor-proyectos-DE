@@ -26,7 +26,7 @@ import {
   WidthType,
   type IParagraphOptions,
 } from "docx";
-import { getLogo } from "./logo";
+import { fitLogo, getLogo } from "./logo";
 
 /* ============================================================
  * Paleta Data Express
@@ -67,6 +67,15 @@ export const PAGE = {
 
 export const CONTENT_W =
   PAGE.width - PAGE.marginLeft - PAGE.marginRight; // 9746 twips
+
+/**
+ * Lado (px) de la caja donde se dibuja el logo en cada sitio. El logo incluye
+ * las letras "data express LATINOAMÉRICA" bajo el símbolo, así que necesita
+ * más tamaño que un símbolo solo para que el texto se lea.
+ */
+export const LOGO_COVER_PX = 150;
+export const LOGO_HEADER_PX = 40;
+export const LOGO_FOOTER_PX = 22;
 
 /* ============================================================
  * Bordes
@@ -414,7 +423,7 @@ export function makeHeader(docShort: string, docVersion: string): Header {
           new ImageRun({
             type: logo.format,
             data: logo.buffer,
-            transformation: { width: 28, height: 28 },
+            transformation: fitLogo(logo, LOGO_HEADER_PX),
             altText: {
               title: "Logo",
               description: "Data Express",
@@ -541,7 +550,7 @@ export function makeFooter(docShort: string): Footer {
           new ImageRun({
             type: logo.format,
             data: logo.buffer,
-            transformation: { width: 14, height: 14 },
+            transformation: fitLogo(logo, LOGO_FOOTER_PX),
             altText: { title: "Logo", description: "DX", name: "logo-mini" },
           }),
           new TextRun({
@@ -670,7 +679,7 @@ export function buildCover(opts: CoverOpts): (Table | Paragraph)[] {
           new ImageRun({
             type: logo.format,
             data: logo.buffer,
-            transformation: { width: 110, height: 110 },
+            transformation: fitLogo(logo, LOGO_COVER_PX),
             altText: {
               title: "Data Express",
               description: "Logo Data Express",

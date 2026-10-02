@@ -538,7 +538,7 @@ export default function Home() {
             <img
               src="/logo_dx.png"
               alt="Data Express"
-              className="h-12 w-12 object-contain"
+              className="h-16 w-16 shrink-0 object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
                 const placeholder = e.currentTarget.nextElementSibling as HTMLElement | null;
@@ -546,7 +546,7 @@ export default function Home() {
               }}
             />
             <div
-              className="h-12 w-12 rounded bg-dxnavy items-center justify-center text-white font-bold text-base"
+              className="h-16 w-16 shrink-0 rounded bg-dxnavy items-center justify-center text-white font-bold text-base"
               style={{ display: "none" }}
             >
               DX
@@ -568,7 +568,7 @@ export default function Home() {
               {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
           </div>
-          <p className="text-sm text-dxgray dark:text-gray-400 mt-1 sm:ml-[3.75rem]">
+          <p className="text-sm text-dxgray dark:text-gray-400 mt-1 sm:ml-[4.75rem]">
             Conéctate con Asana, elige un proyecto y genera el Acta de Inicio, el
             Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el formato
             corporativo.
