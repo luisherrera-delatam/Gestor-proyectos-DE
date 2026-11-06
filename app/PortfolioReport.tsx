@@ -10,7 +10,6 @@ import {
   type PortfolioReport as Report,
   type ReportProject,
 } from "@/lib/portfolio-report";
-import MonthlyCharts from "./MonthlyCharts";
 
 interface Props {
   /** Hay sesión OAuth (si no, se usa el token manual). */
@@ -269,8 +268,6 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
               tone="text-amber-600 dark:text-amber-400"
             />
           </div>
-
-          <MonthlyCharts monthly={report.monthly} today={report.generatedOn} />
 
           <div>
             <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
