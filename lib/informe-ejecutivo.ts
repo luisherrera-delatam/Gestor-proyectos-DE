@@ -1100,7 +1100,7 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
       [
         "B",
         "Informe en Excel (hojas Resumen, Finalizados y Pendientes)",
-        "Gestor de proyectos Data Express → Informe de portafolio → Descargar Excel",
+        "Gestor de proyectos Data Express → Informe de portafolio de desarrollo → Descargar Excel",
       ],
     ])
   );

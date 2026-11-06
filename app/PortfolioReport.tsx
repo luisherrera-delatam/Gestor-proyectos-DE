@@ -165,7 +165,7 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
     <section className="mt-6 bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-4 fade-up fade-up-2">
       <div>
         <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
-          Informe de portafolio
+          Informe de portafolio de desarrollo
         </p>
         <p className="text-sm text-dxgray dark:text-gray-400 mt-1">
           Proyectos finalizados en el mes elegido y proyectos que siguen pendientes, de todos
