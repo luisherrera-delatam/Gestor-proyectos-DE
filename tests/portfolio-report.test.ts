@@ -307,3 +307,32 @@ describe("proyectos descartados (estatus dropped en Asana)", () => {
     expect(reportToPlainText(r)).toContain("DESCARTADOS EN OCTUBRE DE 2026");
   });
 });
+
+describe("subportafolios nombrados por país (Implementaciones)", () => {
+  it("reconoce 'Colombia 2026', 'Perú 2026', 'Dominicana 2026'…", () => {
+    expect(countryFromPortfolioName("Colombia 2026")).toBe("Colombia");
+    expect(countryFromPortfolioName("Costa Rica 2026")).toBe("Costa Rica");
+    expect(countryFromPortfolioName("Perú 2026")).toBe("Perú");
+    expect(countryFromPortfolioName("Dominicana 2026")).toBe("República Dominicana");
+    expect(countryFromPortfolioName("México 2026")).toBe("México");
+    expect(countryFromPortfolioName("Ecuador 2026")).toBe("Ecuador");
+    // Siguen funcionando los códigos de Desarrollo.
+    expect(countryFromPortfolioName("CO 2026")).toBe("Colombia");
+  });
+
+  it("usa el subportafolio cuando el nombre del proyecto no trae código", () => {
+    expect(projectCountry("HOTEL SIN CÓDIGO", "Dominicana 2026")).toBe("República Dominicana");
+    expect(projectCountry("DO-26-IP-002: INVERSIONES MAYAZUR", "Dominicana 2026")).toBe("República Dominicana");
+  });
+
+  it("el Excel usa el título de la sección", async () => {
+    const r = buildPortfolioReport("DEL IMP 2026", PROJECTS, { now: NOW });
+    const buf = await buildPortfolioReportExcel(r, { title: "Informe de portafolio de implementaciones" });
+    const wb = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await wb.xlsx.load(buf as any);
+    expect(String(wb.getWorksheet("Resumen")!.getCell("A1").value)).toContain(
+      "Informe de portafolio de implementaciones"
+    );
+  });
+});

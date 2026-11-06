@@ -72,7 +72,10 @@ describe("buildInformeEjecutivo", () => {
   });
 
   it("genera un .docx válido a partir de la plantilla con los datos del informe", async () => {
-    const buf = await buildInformeEjecutivo(report, { elaboro: "Javier Ortega" });
+    const buf = await buildInformeEjecutivo(report, {
+      elaboro: "Javier Ortega",
+      section: "Informe de portafolio de implementaciones",
+    });
     expect(buf[0]).toBe(0x50);
     expect(buf[1]).toBe(0x4b);
 
@@ -97,6 +100,7 @@ describe("buildInformeEjecutivo", () => {
     // No quedan datos de ejemplo de la plantilla.
     expect(text).not.toContain("Chihuanco");
     expect(text).not.toContain("claude.ai/artifact");
+    expect(text).toContain("Informe de portafolio de implementaciones → Descargar Excel");
 
     expect(header).toContain("INFORME: PORTAFOLIO DEL DES 2026 – OCTUBRE");
     expect(header).toContain("Fecha de emisión: 05/11/2026");

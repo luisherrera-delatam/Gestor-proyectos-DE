@@ -21,7 +21,14 @@ export const maxDuration = 60;
  * (plantilla corporativa lib/templates/informe-ejecutivo.docx).
  */
 export async function POST(req: NextRequest) {
-  let body: { token?: string; portfolio?: string; month?: string; format?: string };
+  let body: {
+    token?: string;
+    portfolio?: string;
+    month?: string;
+    format?: string;
+    /** Nombre de la sección del gestor que pide el informe (desarrollo / implementaciones). */
+    section?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -36,6 +43,7 @@ export async function POST(req: NextRequest) {
     );
   }
   const month = (body.month || "").trim();
+  const section = (body.section || "").trim().slice(0, 80) || "Informe de portafolio";
   if (month && !isValidMonth(month)) {
     return NextResponse.json({ error: "Mes inválido (usa AAAA-MM)." }, { status: 400 });
   }
@@ -62,7 +70,9 @@ export async function POST(req: NextRequest) {
 
     if (body.format === "docx") {
       const me = await fetchCurrentUser(auth.token).catch(() => null);
-      const out = new Uint8Array(await buildInformeEjecutivo(report, { elaboro: me?.name ?? null }));
+      const out = new Uint8Array(
+        await buildInformeEjecutivo(report, { elaboro: me?.name ?? null, section })
+      );
       const res = new NextResponse(out, {
         status: 200,
         headers: {
@@ -76,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.format === "xlsx") {
-      const out = new Uint8Array(await buildPortfolioReportExcel(report));
+      const out = new Uint8Array(await buildPortfolioReportExcel(report, { title: section }));
       const filename = `Informe_${sanitizeFilename(report.portfolioName)}_${report.month}.xlsx`;
       const res = new NextResponse(out, {
         status: 200,

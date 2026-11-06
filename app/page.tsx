@@ -6,6 +6,7 @@ import type { WorkspaceProjects } from "@/lib/asana";
 import ProjectPicker from "./ProjectPicker";
 import CountryDashboard from "./CountryDashboard";
 import PortfolioReport from "./PortfolioReport";
+import { DEFAULT_PORTFOLIO_URL, IMPLEMENTATIONS_PORTFOLIO_URL } from "@/lib/portfolio-report";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
 
@@ -1016,7 +1017,24 @@ export default function Home() {
         </form>
 
         {hasAuth && (
-          <PortfolioReport connected={connected} token={token} onDone={setToast} />
+          <>
+            <PortfolioReport
+              connected={connected}
+              token={token}
+              onDone={setToast}
+              title="Informe de portafolio de desarrollo"
+              defaultPortfolioUrl={DEFAULT_PORTFOLIO_URL}
+              storageKey="asanaweb.report_portfolio.v1"
+            />
+            <PortfolioReport
+              connected={connected}
+              token={token}
+              onDone={setToast}
+              title="Informe de portafolio de implementaciones"
+              defaultPortfolioUrl={IMPLEMENTATIONS_PORTFOLIO_URL}
+              storageKey="asanaweb.report_portfolio_imp.v1"
+            />
+          </>
         )}
 
         <footer className="mt-6 text-center text-xs text-dxgray dark:text-gray-400 fade-up fade-up-2">

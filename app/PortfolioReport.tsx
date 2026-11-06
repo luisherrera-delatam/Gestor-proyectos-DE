@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import OpenByCountryChart from "./OpenByCountryChart";
 import {
-  DEFAULT_PORTFOLIO_URL,
   previousMonth,
   reportToPlainText,
   shortDate,
@@ -19,11 +18,15 @@ interface Props {
   token: string;
   /** Notifica una acción completada (toast de la página). */
   onDone?: (message: string) => void;
+  /** Título de la sección, p. ej. "Informe de portafolio de desarrollo". */
+  title: string;
+  /** URL del portafolio de Asana que se usa por defecto. */
+  defaultPortfolioUrl: string;
+  /** Clave de localStorage para recordar el portafolio de esta sección. */
+  storageKey: string;
 }
 
 type Format = "json" | "xlsx" | "docx";
-
-const PORTFOLIO_STORAGE_KEY = "asanaweb.report_portfolio.v1";
 
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
@@ -65,8 +68,15 @@ function ProjectName({ p }: { p: ReportProject }) {
   );
 }
 
-export default function PortfolioReport({ connected, token, onDone }: Props) {
-  const [portfolio, setPortfolio] = useState(DEFAULT_PORTFOLIO_URL);
+export default function PortfolioReport({
+  connected,
+  token,
+  onDone,
+  title,
+  defaultPortfolioUrl,
+  storageKey,
+}: Props) {
+  const [portfolio, setPortfolio] = useState(defaultPortfolioUrl);
   const [month, setMonth] = useState("");
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState<Format | null>(null);
@@ -78,15 +88,15 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMonth(previousMonth());
     try {
-      const saved = window.localStorage.getItem(PORTFOLIO_STORAGE_KEY);
+      const saved = window.localStorage.getItem(storageKey);
       if (saved) setPortfolio(saved);
     } catch {
       // localStorage puede no estar disponible.
     }
-  }, []);
+  }, [storageKey]);
 
   function payload(format: Format) {
-    const body: Record<string, string> = { portfolio: portfolio.trim(), month, format };
+    const body: Record<string, string> = { portfolio: portfolio.trim(), month, format, section: title };
     if (!connected && token.trim()) body.token = token.trim();
     return body;
   }
@@ -105,7 +115,7 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
         throw new Error(data.error || `Error ${res.status}`);
       }
       try {
-        window.localStorage.setItem(PORTFOLIO_STORAGE_KEY, portfolio.trim());
+        window.localStorage.setItem(storageKey, portfolio.trim());
       } catch {
         // ignore
       }
@@ -165,7 +175,7 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
     <section className="mt-6 bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-4 fade-up fade-up-2">
       <div>
         <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
-          Informe de portafolio de desarrollo
+          {title}
         </p>
         <p className="text-sm text-dxgray dark:text-gray-400 mt-1">
           Proyectos finalizados en el mes elegido y proyectos que siguen pendientes, de todos

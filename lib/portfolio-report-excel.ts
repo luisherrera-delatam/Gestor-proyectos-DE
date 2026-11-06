@@ -71,7 +71,10 @@ function addEmpty(ws: ExcelJS.Worksheet, rowNumber: number, lastCol: string, tex
   ws.getRow(rowNumber).height = 22;
 }
 
-export async function buildPortfolioReportExcel(report: PortfolioReport): Promise<Buffer> {
+export async function buildPortfolioReportExcel(
+  report: PortfolioReport,
+  opts: { title?: string } = {}
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Data Express";
   wb.created = new Date();
@@ -82,7 +85,7 @@ export async function buildPortfolioReportExcel(report: PortfolioReport): Promis
   // ── Resumen ──
   const sum = wb.addWorksheet("Resumen");
   sum.columns = [{ width: 46 }, { width: 14 }];
-  addTitle(sum, "B", `Informe de portafolio — ${report.monthLabel}`, subtitle);
+  addTitle(sum, "B", `${opts.title || "Informe de portafolio"} — ${report.monthLabel}`, subtitle);
   addHeader(sum, 3, ["Indicador", "Cantidad"]);
   const rows: [string, number][] = [
     [`Proyectos finalizados en ${report.monthLabel}`, s.finished],

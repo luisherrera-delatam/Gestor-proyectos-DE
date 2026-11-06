@@ -16,9 +16,13 @@ const ASANA_BASE = "https://app.asana.com/api/1.0";
 
 export const REPORT_TIME_ZONE = "America/Mexico_City";
 
-/** Portafolio por defecto del PMO (DEL DES 2026). */
+/** Portafolio de desarrollo del PMO (DEL DES 2026). */
 export const DEFAULT_PORTFOLIO_URL =
   "https://app.asana.com/0/portfolio/1212620077648424/1212621352596189";
+
+/** Portafolio de implementaciones del PMO (DEL IMP 2026). */
+export const IMPLEMENTATIONS_PORTFOLIO_URL =
+  "https://app.asana.com/0/portfolio/1212620077648397/1212662893753587";
 
 /** Códigos usados en los nombres de los subportafolios ("CO 2026", "HN 2026"…). */
 const PORTFOLIO_COUNTRY_CODES: Record<string, string> = {
@@ -258,7 +262,23 @@ export function extractPortfolioGid(input: string): string | null {
 // ── País ─────────────────────────────────────────────────────────────────────
 
 /** País según el prefijo del nombre del subportafolio ("HN 2026" → Honduras). */
+/** Subportafolios nombrados por país ("Colombia 2026", "Dominicana 2026"…). */
+// Fin de palabra explícito: \b no funciona después de letras acentuadas (Perú).
+const END = "(?=[\\s_-]|$)";
+const PORTFOLIO_COUNTRY_NAMES: [RegExp, string][] = [
+  [new RegExp(`^colombia${END}`, "i"), "Colombia"],
+  [new RegExp(`^costa\\s+rica${END}`, "i"), "Costa Rica"],
+  [new RegExp(`^ecuador${END}`, "i"), "Ecuador"],
+  [new RegExp(`^per[uú]${END}`, "i"), "Perú"],
+  [new RegExp(`^(rep[uú]blica\\s+)?dominicana${END}`, "i"), "República Dominicana"],
+  [new RegExp(`^m[eé]xico${END}`, "i"), "México"],
+  [new RegExp(`^honduras${END}`, "i"), "Honduras"],
+  [new RegExp(`^delatam${END}`, "i"), "DELATAM"],
+];
+
 export function countryFromPortfolioName(name: string): string | null {
+  const byName = PORTFOLIO_COUNTRY_NAMES.find(([re]) => re.test(name.trim()));
+  if (byName) return byName[1];
   const m = name.trim().match(/^([A-Za-z]{2,3})(?=[-_ ]|$)/);
   if (!m) return null;
   return PORTFOLIO_COUNTRY_CODES[m[1].toUpperCase()] ?? null;

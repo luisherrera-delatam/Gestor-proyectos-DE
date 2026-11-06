@@ -363,6 +363,8 @@ function countryOrder(a: ReportProject, b: ReportProject): number {
 export interface InformeOptions {
   /** Quien elabora el informe (usuario conectado a Asana). */
   elaboro?: string | null;
+  /** Sección del gestor desde la que se generó (para el anexo B). */
+  section?: string | null;
 }
 
 /**
@@ -1100,7 +1102,7 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
       [
         "B",
         "Informe en Excel (hojas Resumen, Finalizados y Pendientes)",
-        "Gestor de proyectos Data Express → Informe de portafolio de desarrollo → Descargar Excel",
+        `Gestor de proyectos Data Express → ${opts.section || "Informe de portafolio"} → Descargar Excel`,
       ],
     ])
   );
