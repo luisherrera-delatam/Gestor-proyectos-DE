@@ -8,14 +8,17 @@ import {
   isValidMonth,
 } from "@/lib/portfolio-report";
 import { buildPortfolioReportExcel } from "@/lib/portfolio-report-excel";
+import { buildInformeEjecutivo, informeFilename } from "@/lib/informe-ejecutivo";
+import { fetchCurrentUser } from "@/lib/asana";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
  * POST /api/portfolio-report
- * Body: { token?, portfolio: gid | URL, month?: "YYYY-MM", format?: "json" | "xlsx" }
- * Devuelve el informe en JSON o como Excel descargable.
+ * Body: { token?, portfolio: gid | URL, month?: "YYYY-MM", format?: "json" | "xlsx" | "docx" }
+ * Devuelve el informe en JSON, como Excel o como Informe ejecutivo en Word
+ * (plantilla corporativa lib/templates/informe-ejecutivo.docx).
  */
 export async function POST(req: NextRequest) {
   let body: { token?: string; portfolio?: string; month?: string; format?: string };
@@ -46,8 +49,31 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, projects } = await fetchPortfolioProjects(portfolioGid, auth.token);
-    const report = buildPortfolioReport(name, projects, { month: month || undefined });
+    const { name, owner, subportfolios, projects } = await fetchPortfolioProjects(
+      portfolioGid,
+      auth.token
+    );
+    const report = buildPortfolioReport(name, projects, {
+      month: month || undefined,
+      owner,
+      subportfolios,
+      gid: portfolioGid,
+    });
+
+    if (body.format === "docx") {
+      const me = await fetchCurrentUser(auth.token).catch(() => null);
+      const out = new Uint8Array(await buildInformeEjecutivo(report, { elaboro: me?.name ?? null }));
+      const res = new NextResponse(out, {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "Content-Disposition": `attachment; filename="${informeFilename(report)}.docx"`,
+          "Content-Length": String(out.byteLength),
+        },
+      });
+      return applyRefreshedCookie(res, auth);
+    }
 
     if (body.format === "xlsx") {
       const out = new Uint8Array(await buildPortfolioReportExcel(report));

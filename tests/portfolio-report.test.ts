@@ -103,7 +103,7 @@ describe("extractPortfolioGid", () => {
 describe("país", () => {
   it("usa el prefijo del proyecto y, si no, el del subportafolio", () => {
     expect(projectCountry("PE-26-DS-004: X", "DEL 2026")).toBe("Perú");
-    expect(projectCountry("DEL-26-DS-002: MEJORAS DX", "DEL 2026")).toBe("Delatam");
+    expect(projectCountry("DEL-26-DS-002: MEJORAS DX", "DEL 2026")).toBe("DELATAM");
     expect(projectCountry("HN DESARROLLO DX+ HONDURAS", "HN 2026")).toBe("Honduras");
     expect(countryFromPortfolioName("XX 2026")).toBeNull();
   });
@@ -134,6 +134,10 @@ describe("buildPortfolioReport", () => {
 
   it("calcula el resumen", () => {
     expect(report.summary).toEqual({
+      // 5 finalizados (3 en octubre + 2 en otros meses) + 1 con estatus "complete"
+      // + el archivado ya cerrado no cuenta; abiertos: 5.
+      total: report.summary.finishedTotal + 5,
+      finishedTotal: report.summary.finishedTotal,
       finished: 3,
       finishedOnTime: 1,
       finishedLate: 1,
@@ -207,5 +211,26 @@ describe("fetchPortfolioProjects", () => {
     expect(name).toBe("DEL DES 2026");
     expect(projects).toHaveLength(1);
     expect(projects[0].parentPortfolio).toBe("PE 2026");
+  });
+});
+
+describe("totales por país", () => {
+  it("cuenta finalizados en el mes, en otros meses y abiertos", () => {
+    const r = buildPortfolioReport("X", PROJECTS, { now: NOW });
+    // 3 en octubre + gid 4 (sep) + gid 5 (nov) + gid 12 (estatus complete) = 6.
+    expect(r.summary.finishedTotal).toBe(6);
+    expect(r.summary.total).toBe(11);
+    const sum = r.byCountry.reduce((a, c) => a + c.total, 0);
+    expect(sum).toBe(r.summary.total);
+    expect(r.byCountry.map((c) => c.country)).toEqual(
+      [...r.byCountry.map((c) => c.country)].sort((a, b) => a.localeCompare(b, "es"))
+    );
+  });
+
+  it("calcula días de retraso y días restantes", () => {
+    const r = buildPortfolioReport("X", PROJECTS, { now: NOW });
+    expect(r.pending.find((p) => p.gid === "8")?.daysLate).toBe(51);
+    expect(r.pending.find((p) => p.gid === "6")?.daysLeft).toBe(11);
+    expect(r.finished.find((p) => p.gid === "2")?.daysLate).toBe(2);
   });
 });

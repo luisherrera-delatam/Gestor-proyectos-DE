@@ -20,6 +20,8 @@ interface Props {
   onDone?: (message: string) => void;
 }
 
+type Format = "json" | "xlsx" | "docx";
+
 const PORTFOLIO_STORAGE_KEY = "asanaweb.report_portfolio.v1";
 
 const inputClass =
@@ -66,7 +68,7 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
   const [portfolio, setPortfolio] = useState(DEFAULT_PORTFOLIO_URL);
   const [month, setMonth] = useState("");
   const [report, setReport] = useState<Report | null>(null);
-  const [loading, setLoading] = useState<"json" | "xlsx" | null>(null);
+  const [loading, setLoading] = useState<Format | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // El mes por defecto depende del reloj del navegador y el portafolio guardado
@@ -82,13 +84,13 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
     }
   }, []);
 
-  function payload(format: "json" | "xlsx") {
+  function payload(format: Format) {
     const body: Record<string, string> = { portfolio: portfolio.trim(), month, format };
     if (!connected && token.trim()) body.token = token.trim();
     return body;
   }
 
-  async function run(format: "json" | "xlsx") {
+  async function run(format: Format) {
     setError(null);
     setLoading(format);
     try {
@@ -119,12 +121,12 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = match ? match[1] : `Informe_${month}.xlsx`;
+      a.download = match ? match[1] : `Informe_${month}.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      onDone?.("Informe en Excel descargado");
+      onDone?.(format === "docx" ? "Informe ejecutivo descargado" : "Informe en Excel descargado");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -202,7 +204,7 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <button
           type="button"
           onClick={() => run("json")}
@@ -218,6 +220,15 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
           className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {loading === "xlsx" ? "Generando Excel…" : "Descargar Excel"}
+        </button>
+        <button
+          type="button"
+          onClick={() => run("docx")}
+          disabled={!canRun}
+          title="Informe ejecutivo con la plantilla corporativa de Data Express"
+          className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading === "docx" ? "Generando Word…" : "Informe en Word"}
         </button>
       </div>
 

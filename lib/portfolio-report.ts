@@ -29,7 +29,7 @@ const PORTFOLIO_COUNTRY_CODES: Record<string, string> = {
   EC: "Ecuador",
   CR: "Costa Rica",
   HN: "Honduras",
-  DEL: "Delatam",
+  DEL: "DELATAM",
 };
 
 const MONTHS_ES = [
@@ -67,7 +67,7 @@ export interface PortfolioItemRaw {
   due_on?: string | null;
   archived?: boolean | null;
   owner?: { name?: string | null } | null;
-  current_status_update?: { status_type?: string | null } | null;
+  current_status_update?: { status_type?: string | null; created_at?: string | null } | null;
 }
 
 /** Proyecto encontrado en el portafolio, con el subportafolio donde vive. */
@@ -85,15 +85,37 @@ export interface ReportProject {
   /** Fecha de cierre (YYYY-MM-DD en la zona del informe). */
   completedOn: string | null;
   status: ProjectStatus;
+  /** Fecha del último estatus publicado (YYYY-MM-DD en la zona del informe). */
+  statusDate: string | null;
   /** Pendiente con fecha de entrega anterior a hoy. */
   overdue: boolean;
   /** Finalizado: true = a tiempo, false = con retraso, null = sin fecha de entrega. */
   onTime: boolean | null;
+  /**
+   * Días de retraso: pendiente vencido → días desde la entrega hasta hoy;
+   * finalizado → días entre la entrega y el cierre (0 o negativo = a tiempo).
+   */
+  daysLate: number | null;
+  /** Pendiente en plazo: días que faltan para la entrega. */
+  daysLeft: number | null;
   url: string;
+}
+
+export interface CountryRow {
+  country: string;
+  total: number;
+  finishedInMonth: number;
+  finishedOther: number;
+  open: number;
+  overdue: number;
 }
 
 export interface PortfolioReport {
   portfolioName: string;
+  portfolioGid: string | null;
+  portfolioOwner: string | null;
+  /** Número de subportafolios recorridos. */
+  subportfolios: number;
   /** Mes del informe, "YYYY-MM". */
   month: string;
   /** "octubre de 2026". */
@@ -102,7 +124,15 @@ export interface PortfolioReport {
   generatedOn: string;
   finished: ReportProject[];
   pending: ReportProject[];
+  /** Totales por país (todos los proyectos del portafolio), en orden alfabético. */
+  byCountry: CountryRow[];
+  /** Días con 4 o más cierres (posible cierre en bloque / depuración). */
+  bulkClosures: { date: string; count: number }[];
   summary: {
+    /** Proyectos del portafolio (finalizados en cualquier fecha + abiertos). */
+    total: number;
+    /** Finalizados en cualquier fecha. */
+    finishedTotal: number;
     finished: number;
     finishedOnTime: number;
     finishedLate: number;
@@ -134,6 +164,22 @@ export function previousMonth(now: Date = new Date(), timeZone = REPORT_TIME_ZON
   const py = m === 1 ? y - 1 : y;
   const pm = m === 1 ? 12 : m - 1;
   return `${py}-${String(pm).padStart(2, "0")}`;
+}
+
+/** Días entre dos fechas calendario YYYY-MM-DD (b − a). */
+export function diffDays(a: string, b: string): number {
+  const ms = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((ms(b) - ms(a)) / 86_400_000);
+}
+
+/** Último día del mes "YYYY-MM", como YYYY-MM-DD. */
+export function monthEnd(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${month}-${String(last).padStart(2, "0")}`;
 }
 
 export function isValidMonth(month: string): boolean {
@@ -207,8 +253,19 @@ function toReportProject(p: PortfolioProject, today: string): ReportProject {
     dueOn,
     completedOn,
     status,
+    statusDate: p.current_status_update?.created_at
+      ? localDate(p.current_status_update.created_at)
+      : null,
     overdue: !completedOn && !!dueOn && dueOn < today,
     onTime: completedOn && dueOn ? completedOn <= dueOn : null,
+    daysLate: completedOn
+      ? dueOn
+        ? diffDays(dueOn, completedOn)
+        : null
+      : dueOn && dueOn < today
+        ? diffDays(dueOn, today)
+        : null,
+    daysLeft: !completedOn && dueOn && dueOn >= today ? diffDays(today, dueOn) : null,
     url: `https://app.asana.com/0/${p.gid}/list`,
   };
 }
@@ -231,7 +288,13 @@ function byDueDate(a: ReportProject, b: ReportProject): number {
 export function buildPortfolioReport(
   portfolioName: string,
   projects: PortfolioProject[],
-  options: { month?: string; now?: Date } = {}
+  options: {
+    month?: string;
+    now?: Date;
+    owner?: string | null;
+    subportfolios?: number;
+    gid?: string | null;
+  } = {}
 ): PortfolioReport {
   const now = options.now ?? new Date();
   const month = options.month && isValidMonth(options.month) ? options.month : previousMonth(now);
@@ -242,21 +305,59 @@ export function buildPortfolioReport(
   for (const p of projects) if (!unique.has(p.gid)) unique.set(p.gid, p);
 
   const finished: ReportProject[] = [];
+  const finishedOther: ReportProject[] = [];
   const pending: ReportProject[] = [];
 
   for (const p of unique.values()) {
     const rp = toReportProject(p, today);
     if (rp.completedOn) {
       if (rp.completedOn.startsWith(`${month}-`)) finished.push(rp);
+      else finishedOther.push(rp);
       continue;
     }
-    if (p.archived) continue;
     const active = isProjectActive({
       completed: p.completed,
       current_status: { status_type: p.current_status_update?.status_type ?? null },
     });
-    if (active) pending.push(rp);
+    if (!active) finishedOther.push(rp); // estatus "complete" sin marcar completado
+    else if (!p.archived) pending.push(rp);
   }
+
+  const countries = new Map<string, CountryRow>();
+  const row = (c: string) => {
+    if (!countries.has(c)) {
+      countries.set(c, { country: c, total: 0, finishedInMonth: 0, finishedOther: 0, open: 0, overdue: 0 });
+    }
+    return countries.get(c)!;
+  };
+  for (const p of finished) {
+    const r = row(p.country);
+    r.finishedInMonth++;
+    r.total++;
+  }
+  for (const p of finishedOther) {
+    const r = row(p.country);
+    r.finishedOther++;
+    r.total++;
+  }
+  for (const p of pending) {
+    const r = row(p.country);
+    r.open++;
+    r.total++;
+    if (p.overdue) r.overdue++;
+  }
+  const byCountry = Array.from(countries.values()).sort((a, b) =>
+    a.country.localeCompare(b.country, "es")
+  );
+
+  const perDay = new Map<string, number>();
+  for (const p of [...finished, ...finishedOther]) {
+    if (p.completedOn) perDay.set(p.completedOn, (perDay.get(p.completedOn) ?? 0) + 1);
+  }
+  const bulkClosures = Array.from(perDay.entries())
+    .filter(([, count]) => count >= 4)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   finished.sort(
     (a, b) => (a.completedOn ?? "").localeCompare(b.completedOn ?? "") || a.name.localeCompare(b.name)
@@ -265,12 +366,19 @@ export function buildPortfolioReport(
 
   return {
     portfolioName,
+    portfolioGid: options.gid ?? null,
+    portfolioOwner: options.owner ?? null,
+    subportfolios: options.subportfolios ?? 0,
     month,
     monthLabel: monthLabel(month),
     generatedOn: today,
     finished,
     pending,
+    byCountry,
+    bulkClosures,
     summary: {
+      total: finished.length + finishedOther.length + pending.length,
+      finishedTotal: finished.length + finishedOther.length,
       finished: finished.length,
       finishedOnTime: finished.filter((p) => p.onTime === true).length,
       finishedLate: finished.filter((p) => p.onTime === false).length,
@@ -327,6 +435,7 @@ const ITEM_FIELDS = [
   "archived",
   "owner.name",
   "current_status_update.status_type",
+  "current_status_update.created_at",
 ].join(",");
 
 async function asanaGet<T>(path: string, token: string): Promise<T> {
@@ -363,11 +472,14 @@ const MAX_PORTFOLIO_DEPTH = 4;
 export async function fetchPortfolioProjects(
   portfolioGid: string,
   token: string
-): Promise<{ name: string; projects: PortfolioProject[] }> {
-  const root: { data: { name: string } } = await asanaGet(
-    `/portfolios/${portfolioGid}?opt_fields=name`,
-    token
-  );
+): Promise<{
+  name: string;
+  owner: string | null;
+  subportfolios: number;
+  projects: PortfolioProject[];
+}> {
+  const root: { data: { name: string; owner?: { name?: string | null } | null } } =
+    await asanaGet(`/portfolios/${portfolioGid}?opt_fields=name,owner.name`, token);
   const rootName = root.data.name;
 
   const projects: PortfolioProject[] = [];
@@ -392,5 +504,10 @@ export async function fetchPortfolioProjects(
     frontier = next;
   }
 
-  return { name: rootName, projects };
+  return {
+    name: rootName,
+    owner: root.data.owner?.name ?? null,
+    subportfolios: visited.size - 1,
+    projects,
+  };
 }

@@ -7,6 +7,8 @@ const nextConfig = {
     "/api/generate": ["./public/logo_dx.png"],
     "/api/generate-inicio": ["./public/logo_dx.png"],
     "/api/gantt": ["./public/logo_dx.png"],
+    // Plantilla Word del Informe ejecutivo de portafolio (se lee con fs).
+    "/api/portfolio-report": ["./lib/templates/informe-ejecutivo.docx"],
   },
 };
 
