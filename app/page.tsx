@@ -5,6 +5,7 @@ import type { ProjectSummary } from "@/lib/project-summary";
 import type { WorkspaceProjects } from "@/lib/asana";
 import ProjectPicker from "./ProjectPicker";
 import CountryDashboard from "./CountryDashboard";
+import PortfolioReport from "./PortfolioReport";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
 
@@ -1013,6 +1014,10 @@ export default function Home() {
             )}
           </div>
         </form>
+
+        {hasAuth && (
+          <PortfolioReport connected={connected} token={token} onDone={setToast} />
+        )}
 
         <footer className="mt-6 text-center text-xs text-dxgray dark:text-gray-400 fade-up fade-up-2">
           © Data Express · El token no se almacena ni se loguea en el servidor.
