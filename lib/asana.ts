@@ -63,7 +63,8 @@ const STATUS_FIELD_NAME_RE = /estado|status|fase|etapa/i;
 /**
  * Un proyecto está vigente si NO está finalizado. Se considera finalizado si:
  *   - tiene el check de proyecto completado (completed),
- *   - su última actualización de estado es de tipo "complete", o
+ *   - su última actualización de estado es de tipo "complete" o "dropped"
+ *     (Descartado), o
  *   - un campo personalizado de estado (Estado / Status / Fase) tiene un valor
  *     como "Finalizado" / "Completado" / "Cerrado" / "Terminado".
  */
@@ -74,6 +75,8 @@ export function isProjectActive(p: {
 }): boolean {
   if (p.completed === true) return false;
   if (p.current_status?.status_type === "complete") return false;
+  // "Descartado" (dropped) en Asana: el proyecto ya no está vigente.
+  if (p.current_status?.status_type === "dropped") return false;
   for (const cf of p.customFields ?? []) {
     if (!cf) continue;
     const name = cf.name ?? "";

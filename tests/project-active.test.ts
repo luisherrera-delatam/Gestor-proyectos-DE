@@ -15,6 +15,10 @@ describe("isProjectActive", () => {
     expect(isProjectActive({ current_status: { status_type: "complete" } })).toBe(false);
   });
 
+  it("hides projects whose status is 'dropped' (Descartado)", () => {
+    expect(isProjectActive({ current_status: { status_type: "dropped" } })).toBe(false);
+  });
+
   it("keeps projects with non-complete status", () => {
     expect(isProjectActive({ current_status: { status_type: "on_track" } })).toBe(true);
     expect(isProjectActive({ current_status: { status_type: "at_risk" } })).toBe(true);

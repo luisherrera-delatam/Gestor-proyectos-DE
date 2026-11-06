@@ -146,6 +146,33 @@ describe("buildInformeEjecutivo", () => {
     expect(red.indexOf("<w:shd")).toBeLessThan(red.indexOf("<w:tcMar>"));
   });
 
+  it("muestra los descartados en la Tabla 1 y en el resumen", async () => {
+    const withDropped = buildPortfolioReport(
+      "DEL DES 2026",
+      [
+        ...PROJECTS,
+        proj({
+          gid: "d1",
+          name: "MX-26-DS-009: RECEPCIÓN DX",
+          parentPortfolio: "MX 2026",
+          completed: true,
+          completed_at: "2026-10-20T18:00:00Z",
+          current_status_update: { status_type: "dropped", created_at: "2026-10-20T18:00:00Z" },
+        }),
+      ],
+      { now: NOW }
+    );
+    const { doc, text } = await docText(await buildInformeEjecutivo(withDropped));
+    expect(text).toContain("Descartados");
+    expect(text).toContain("se descartó 1 proyecto (MX-26-DS-009)");
+    const body = doc.slice(doc.indexOf("<w:body>") + 8, doc.indexOf("</w:body>"));
+    const t1 = splitTopLevel(body).find((x) => x.startsWith("<w:tbl") && plainText(x).includes("Finalizados fuera de"))!;
+    expect((t1.match(/<w:gridCol /g) || []).length).toBe(7);
+    for (const row of t1.match(/<w:tr[\s>][\s\S]*?<\/w:tr>/g)!) {
+      expect((row.match(/<w:tc>/g) || []).length).toBe(7);
+    }
+  });
+
   it("funciona con un portafolio vacío", async () => {
     const empty = buildPortfolioReport("Vacío", [], { now: NOW });
     const { text } = await docText(await buildInformeEjecutivo(empty));

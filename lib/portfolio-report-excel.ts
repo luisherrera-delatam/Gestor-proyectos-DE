@@ -93,6 +93,8 @@ export async function buildPortfolioReportExcel(report: PortfolioReport): Promis
     ["   · Fuera de curso", s.offTrack],
     ["   · En riesgo", s.atRisk],
     ["   · Sin fecha de entrega", s.noDueDate],
+    [`Proyectos descartados en ${report.monthLabel}`, s.discarded],
+    ["Proyectos descartados (total del portafolio)", s.discardedTotal],
   ];
   rows.forEach(([label, value], i) => {
     const row = sum.getRow(4 + i);
@@ -145,6 +147,24 @@ export async function buildPortfolioReportExcel(report: PortfolioReport): Promis
     }
   });
   if (report.pending.length === 0) addEmpty(pen, 4, "F", "No hay proyectos pendientes.");
+
+  // ── Descartados ──
+  const dis = wb.addWorksheet("Descartados", { views: [{ state: "frozen", ySplit: 3 }] });
+  dis.columns = [{ width: 20 }, { width: 58 }, { width: 28 }, { width: 14 }, { width: 16 }, { width: 18 }];
+  addTitle(dis, "F", `Proyectos descartados — ${report.monthLabel}`, subtitle);
+  addHeader(dis, 3, ["País", "Proyecto", "Responsable", "Estado", "Entrega planeada", "Fecha de descarte"]);
+  report.discarded.forEach((p, i) => {
+    const row = dis.getRow(4 + i);
+    row.getCell(1).value = p.country;
+    row.getCell(2).value = { text: p.name, hyperlink: p.url };
+    row.getCell(3).value = p.owner ?? "—";
+    row.getCell(4).value = p.state;
+    row.getCell(5).value = shortDate(p.dueOn);
+    row.getCell(6).value = shortDate(p.discardedOn);
+    styleDataRow(row, 6, i % 2 === 0 ? SOFT : WHITE);
+    row.getCell(4).font = { name: "Calibri", size: 10, bold: true, color: { argb: MUTED } };
+  });
+  if (report.discarded.length === 0) addEmpty(dis, 4, "F", "No se descartaron proyectos en este mes.");
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);

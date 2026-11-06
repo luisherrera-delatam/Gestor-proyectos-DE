@@ -299,6 +299,7 @@ export const STATUS_STYLE: Record<string, { label: string } & CellStyle> = {
   off_track: { label: "Fuera de curso", fill: "FDE7E7", color: "B42318", bold: true },
   on_hold: { label: "En pausa", fill: "E6EEF9", color: "1A6FB4", bold: true },
   complete: { label: "Completado", fill: "E3F4EA", color: "1B7F3B", bold: true },
+  dropped: { label: "Descartado", fill: "EDEDED", color: "52514E", bold: true },
 };
 
 const NO_STATUS: { label: string } & CellStyle = {
@@ -315,6 +316,9 @@ function statusStyle(s: ProjectStatus) {
 export function statusCell(p: Pick<ReportProject, "status">): string {
   return statusStyle(p.status).label;
 }
+
+/** Anchos (twips) de la Tabla 1 con la columna "Descartados" (total 10080). */
+const COUNTRY_TABLE_WIDTHS = [2330, 1000, 1450, 1450, 1150, 1400, 1300];
 
 /** Anchos (twips) de la Tabla 3 con la columna "Último estatus" (total 10080). */
 const OPEN_TABLE_WIDTHS = [1300, 2410, 1400, 1150, 1250, 1150, 1420];
@@ -515,6 +519,12 @@ function summaryText(c: Ctx): string {
     })`;
   }
   parts.push(`${open}.`);
+  if (c.r.discarded.length) {
+    const d = c.r.discarded.length;
+    parts.push(
+      `En ${c.mes} se ${plural(d, "descartó 1 proyecto", `descartaron ${d} proyectos`)} (${codes(c.r.discarded)}), que no se cuenta${plural(d, "", "n")} como finalizado${plural(d, "", "s")} ni como pendiente${plural(d, "", "s")}.`
+    );
+  }
   if (c.overdueGreen.length > 0 && c.overdueGreen.length === c.overdue.length) {
     parts.push(
       `El estatus reportado en Asana subestima el atraso porque ${plural(c.overdue.length, "el proyecto vencido sigue", `los ${c.overdue.length} proyectos vencidos siguen`)} en verde.`
@@ -569,7 +579,11 @@ function limitationsText(c: Ctx): string {
 
 function finishedIntroText(c: Ctx): string {
   const n = c.r.finished.length;
-  if (n === 0) return `No se finalizaron proyectos en ${c.mesDe}.`;
+  const d = c.r.discarded.length;
+  const disc = d
+    ? ` Además, ${plural(d, "se descartó 1 proyecto", `se descartaron ${d} proyectos`)} (${codes(c.r.discarded)}).`
+    : "";
+  if (n === 0) return `No se finalizaron proyectos en ${c.mesDe}.${disc}`;
   const pieces: string[] = [];
   if (c.onTime.length) pieces.push(`${numWord(c.onTime.length)} en tiempo`);
   if (c.late.length) {
@@ -579,7 +593,7 @@ function finishedIntroText(c: Ctx): string {
   }
   const noDate = n - c.onTime.length - c.late.length;
   if (noDate) pieces.push(`${numWord(noDate)} sin fecha comprometida`);
-  return `${numCap(n)} ${plural(n, "proyecto cerró", "proyectos cerraron")} en ${c.mes}: ${joinEs(pieces)}.`;
+  return `${numCap(n)} ${plural(n, "proyecto cerró", "proyectos cerraron")} en ${c.mes}: ${joinEs(pieces)}.${disc}`;
 }
 
 function openIntroText(c: Ctx): string {
@@ -707,6 +721,16 @@ function findingRows(c: Ctx): string[][] {
       "Tablas 3 y 4",
     ]);
   }
+  if (c.r.discarded.length) {
+    const d = c.r.discarded.length;
+    out.push([
+      `${plural(d, "Se descartó 1 proyecto", `Se descartaron ${d} proyectos`)} en ${c.mes} (${joinEs(
+        c.r.discarded.map((p) => `${projectCode(p.name)}, ${p.country}`)
+      )}); no se cuenta${plural(d, "", "n")} como finalizado${plural(d, "", "s")}.`,
+      "Medio",
+      "Tabla 1",
+    ]);
+  }
   if (c.r.bulkClosures.length) {
     const total = c.r.bulkClosures.reduce((a, b) => a + b.count, 0);
     out.push([
@@ -752,6 +776,11 @@ function conclusionItems(c: Ctx): string[] {
     );
   } else if (c.red.length > 1) {
     items.push(`${c.red.length} proyectos están en rojo: ${codes(c.red)}.`);
+  }
+  if (s.discarded > 0) {
+    items.push(
+      `${plural(s.discarded, "Se descartó 1 proyecto", `Se descartaron ${s.discarded} proyectos`)} en ${c.mes} (${codes(c.r.discarded)}); el portafolio suma ${s.discardedTotal} ${plural(s.discardedTotal, "descartado", "descartados")}.`
+    );
   }
   if (s.pending > 0) {
     const top = [...c.r.byCountry].filter((x) => x.open > 0).sort((a, b) => b.open - a.open).slice(0, 3);
@@ -952,7 +981,8 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
   );
   set("countryTable", (e) =>
     regenTable(
-      e,
+      // Columna nueva "Descartados" al final.
+      insertColumn(e, 6, COUNTRY_TABLE_WIDTHS),
       r.byCountry.map((x) => [
         x.country,
         String(x.total),
@@ -960,9 +990,18 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
         String(x.finishedOther),
         String(x.open),
         String(x.overdue),
+        String(x.discarded),
       ]),
       {
-        header: [null, null, `Finalizados en ${c.mes}`, `Finalizados fuera de ${c.mes}`, null, null],
+        header: [
+          null,
+          null,
+          `Finalizados en ${c.mes}`,
+          `Finalizados fuera de ${c.mes}`,
+          null,
+          null,
+          "Descartados",
+        ],
         total: [
           "Total",
           String(s.total),
@@ -970,6 +1009,7 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
           String(s.finishedTotal - s.finished),
           String(s.pending),
           String(c.overdue.length),
+          String(s.discardedTotal),
         ],
       }
     )

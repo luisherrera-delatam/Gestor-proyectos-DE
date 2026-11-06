@@ -317,6 +317,37 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
             )}
           </div>
 
+          {report.discarded.length > 0 && (
+            <div>
+              <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
+                Descartados en {report.monthLabel} ({s.discarded})
+              </p>
+              <ul className="divide-y divide-gray-200 dark:divide-gray-700 text-xs">
+                {report.discarded.map((p) => (
+                  <li key={p.gid} className="py-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <ProjectName p={p} />
+                      <span
+                        title="Estado en Asana: proyecto descartado"
+                        className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+                          <path d="M6 6l12 12M18 6 6 18" />
+                        </svg>
+                        {p.state}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-dxgray dark:text-gray-400">
+                      <span>{p.country}</span>
+                      <span>{p.owner ?? "Sin responsable"}</span>
+                      <span>Descartado el {shortDate(p.discardedOn)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div>
             <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
               Pendientes ({s.pending})

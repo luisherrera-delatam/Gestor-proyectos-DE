@@ -138,6 +138,8 @@ describe("buildPortfolioReport", () => {
       // + el archivado ya cerrado no cuenta; abiertos: 5.
       total: report.summary.finishedTotal + 5,
       finishedTotal: report.summary.finishedTotal,
+      discarded: 0,
+      discardedTotal: 0,
       finished: 3,
       finishedOnTime: 1,
       finishedLate: 1,
@@ -172,7 +174,7 @@ describe("buildPortfolioReportExcel", () => {
     const wb = new ExcelJS.Workbook();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await wb.xlsx.load(buffer as any);
-    expect(wb.worksheets.map((w) => w.name)).toEqual(["Resumen", "Finalizados", "Pendientes"]);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["Resumen", "Finalizados", "Pendientes", "Descartados"]);
     expect(wb.getWorksheet("Resumen")!.getCell("B4").value).toBe(3);
     expect(wb.getWorksheet("Pendientes")!.getCell("F4").value).toBe("VENCIDO");
   });
@@ -258,5 +260,50 @@ describe("estado y series mensuales", () => {
     expect(m("2026-12").pendingCum).toBe(4);
     expect(r.monthly.pendingNoDue).toBe(1);
     expect(r.monthly.pendingPriorYears).toBe(0);
+  });
+});
+
+describe("proyectos descartados (estatus dropped en Asana)", () => {
+  // Asana marca el proyecto como completado y su estatus como "dropped".
+  const dropped = proj({
+    gid: "d1",
+    name: "MX-26-DS-008: INTEGRACION DX CON INTELISIS",
+    parentPortfolio: "MX 2026",
+    completed: true,
+    completed_at: "2026-10-20T18:00:00Z",
+    due_on: "2026-09-30",
+    current_status_update: { status_type: "dropped", created_at: "2026-10-20T18:00:00Z" },
+  });
+  const r = buildPortfolioReport("X", [...PROJECTS, dropped], { now: NOW });
+
+  it("no lo cuenta como finalizado ni como pendiente", () => {
+    expect(r.finished.some((p) => p.gid === "d1")).toBe(false);
+    expect(r.pending.some((p) => p.gid === "d1")).toBe(false);
+    expect(r.summary.finished).toBe(3);
+  });
+
+  it("lo lista como Descartado en el mes, con su fecha", () => {
+    expect(r.discarded.map((p) => p.gid)).toEqual(["d1"]);
+    expect(r.discarded[0].state).toBe("Descartado");
+    expect(r.discarded[0].discardedOn).toBe("2026-10-20");
+    expect(r.discarded[0].overdue).toBe(false);
+    expect(r.summary.discarded).toBe(1);
+    expect(r.summary.discardedTotal).toBe(1);
+  });
+
+  it("lo suma al total y a la columna de descartados de su país", () => {
+    expect(r.summary.total).toBe(12);
+    expect(r.byCountry.find((c) => c.country === "México")?.discarded).toBe(1);
+    expect(r.byCountry.reduce((a, c) => a + c.total, 0)).toBe(r.summary.total);
+  });
+
+  it("si se descartó en otro mes, cuenta en el total pero no en el mes", () => {
+    const nov = buildPortfolioReport("X", [...PROJECTS, dropped], { now: NOW, month: "2026-09" });
+    expect(nov.discarded).toHaveLength(0);
+    expect(nov.summary.discardedTotal).toBe(1);
+  });
+
+  it("aparece en el texto para correo", () => {
+    expect(reportToPlainText(r)).toContain("DESCARTADOS EN OCTUBRE DE 2026");
   });
 });

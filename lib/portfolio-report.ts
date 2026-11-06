@@ -43,6 +43,7 @@ export type ProjectStatus =
   | "off_track"
   | "on_hold"
   | "complete"
+  | "dropped"
   | null;
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -51,6 +52,7 @@ export const STATUS_LABELS: Record<string, string> = {
   off_track: "Fuera de curso",
   on_hold: "En pausa",
   complete: "Completado",
+  dropped: "Descartado",
 };
 
 export function statusLabel(status: ProjectStatus): string {
@@ -82,8 +84,13 @@ export interface ReportProject {
   country: string;
   owner: string | null;
   dueOn: string | null;
-  /** Fecha de cierre (YYYY-MM-DD en la zona del informe). */
+  /** Fecha de cierre (YYYY-MM-DD en la zona del informe). Null si fue descartado. */
   completedOn: string | null;
+  /**
+   * Fecha en que se descartó (estatus "Descartado"/dropped en Asana). Asana
+   * marca además el proyecto como completado, pero no cuenta como finalizado.
+   */
+  discardedOn: string | null;
   status: ProjectStatus;
   /** Fecha del último estatus publicado (YYYY-MM-DD en la zona del informe). */
   statusDate: string | null;
@@ -100,8 +107,9 @@ export interface ReportProject {
   daysLeft: number | null;
   url: string;
   /**
-   * Estado tomado de Asana: "Finalizado" si el proyecto está marcado como
-   * completado (o su último estatus es "complete"); si no, el estatus actual.
+   * Estado tomado de Asana: "Descartado" si su último estatus es dropped;
+   * "Finalizado" si está marcado como completado (o su último estatus es
+   * "complete"); si no, el estatus actual.
    */
   state: string;
 }
@@ -135,6 +143,8 @@ export interface CountryRow {
   finishedOther: number;
   open: number;
   overdue: number;
+  /** Descartados en cualquier fecha. */
+  discarded: number;
 }
 
 export interface PortfolioReport {
@@ -151,6 +161,8 @@ export interface PortfolioReport {
   generatedOn: string;
   finished: ReportProject[];
   pending: ReportProject[];
+  /** Proyectos descartados en el mes del informe. */
+  discarded: ReportProject[];
   /** Totales por país (todos los proyectos del portafolio), en orden alfabético. */
   byCountry: CountryRow[];
   /** Días con 4 o más cierres (posible cierre en bloque / depuración). */
@@ -158,8 +170,12 @@ export interface PortfolioReport {
   /** Series mensuales del año del informe, para las gráficas. */
   monthly: MonthlySeries;
   summary: {
-    /** Proyectos del portafolio (finalizados en cualquier fecha + abiertos). */
+    /** Proyectos del portafolio (finalizados + descartados + abiertos). */
     total: number;
+    /** Descartados en el mes del informe. */
+    discarded: number;
+    /** Descartados en cualquier fecha. */
+    discardedTotal: number;
     /** Finalizados en cualquier fecha. */
     finishedTotal: number;
     finished: number;
@@ -264,6 +280,7 @@ function normalizeStatus(s: string | null | undefined): ProjectStatus {
     case "off_track":
     case "on_hold":
     case "complete":
+    case "dropped":
       return s;
     default:
       return null;
@@ -272,8 +289,18 @@ function normalizeStatus(s: string | null | undefined): ProjectStatus {
 
 function toReportProject(p: PortfolioProject, today: string): ReportProject {
   const dueOn = p.due_on ?? null;
-  const completedOn = p.completed && p.completed_at ? localDate(p.completed_at) : null;
   const status = normalizeStatus(p.current_status_update?.status_type);
+  const dropped = status === "dropped";
+  const statusAt = p.current_status_update?.created_at ?? null;
+  const completedOn = !dropped && p.completed && p.completed_at ? localDate(p.completed_at) : null;
+  const discardedOn = dropped
+    ? p.completed_at
+      ? localDate(p.completed_at)
+      : statusAt
+        ? localDate(statusAt)
+        : null
+    : null;
+  const open = !completedOn && !dropped;
   return {
     gid: p.gid,
     name: p.name.trim(),
@@ -281,22 +308,27 @@ function toReportProject(p: PortfolioProject, today: string): ReportProject {
     owner: p.owner?.name ?? null,
     dueOn,
     completedOn,
+    discardedOn,
     status,
     statusDate: p.current_status_update?.created_at
       ? localDate(p.current_status_update.created_at)
       : null,
-    overdue: !completedOn && !!dueOn && dueOn < today,
+    overdue: open && !!dueOn && dueOn < today,
     onTime: completedOn && dueOn ? completedOn <= dueOn : null,
     daysLate: completedOn
       ? dueOn
         ? diffDays(dueOn, completedOn)
         : null
-      : dueOn && dueOn < today
+      : open && dueOn && dueOn < today
         ? diffDays(dueOn, today)
         : null,
-    daysLeft: !completedOn && dueOn && dueOn >= today ? diffDays(today, dueOn) : null,
+    daysLeft: open && dueOn && dueOn >= today ? diffDays(today, dueOn) : null,
     url: `https://app.asana.com/0/${p.gid}/list`,
-    state: completedOn || status === "complete" ? "Finalizado" : statusLabel(status),
+    state: dropped
+      ? "Descartado"
+      : completedOn || status === "complete"
+        ? "Finalizado"
+        : statusLabel(status),
   };
 }
 
@@ -337,9 +369,16 @@ export function buildPortfolioReport(
   const finished: ReportProject[] = [];
   const finishedOther: ReportProject[] = [];
   const pending: ReportProject[] = [];
+  const discarded: ReportProject[] = [];
+  const discardedOther: ReportProject[] = [];
 
   for (const p of unique.values()) {
     const rp = toReportProject(p, today);
+    if (rp.status === "dropped") {
+      if (rp.discardedOn?.startsWith(`${month}-`)) discarded.push(rp);
+      else discardedOther.push(rp);
+      continue;
+    }
     if (rp.completedOn) {
       if (rp.completedOn.startsWith(`${month}-`)) finished.push(rp);
       else finishedOther.push(rp);
@@ -356,7 +395,15 @@ export function buildPortfolioReport(
   const countries = new Map<string, CountryRow>();
   const row = (c: string) => {
     if (!countries.has(c)) {
-      countries.set(c, { country: c, total: 0, finishedInMonth: 0, finishedOther: 0, open: 0, overdue: 0 });
+      countries.set(c, {
+        country: c,
+        total: 0,
+        finishedInMonth: 0,
+        finishedOther: 0,
+        open: 0,
+        overdue: 0,
+        discarded: 0,
+      });
     }
     return countries.get(c)!;
   };
@@ -375,6 +422,11 @@ export function buildPortfolioReport(
     r.open++;
     r.total++;
     if (p.overdue) r.overdue++;
+  }
+  for (const p of [...discarded, ...discardedOther]) {
+    const r = row(p.country);
+    r.discarded++;
+    r.total++;
   }
   const byCountry = Array.from(countries.values()).sort((a, b) =>
     a.country.localeCompare(b.country, "es")
@@ -412,6 +464,9 @@ export function buildPortfolioReport(
     (a, b) => (a.completedOn ?? "").localeCompare(b.completedOn ?? "") || a.name.localeCompare(b.name)
   );
   pending.sort((a, b) => pendingRank(a) - pendingRank(b) || byDueDate(a, b));
+  discarded.sort(
+    (a, b) => (a.discardedOn ?? "").localeCompare(b.discardedOn ?? "") || a.name.localeCompare(b.name)
+  );
 
   return {
     portfolioName,
@@ -423,11 +478,19 @@ export function buildPortfolioReport(
     generatedOn: today,
     finished,
     pending,
+    discarded,
     byCountry,
     bulkClosures,
     monthly,
     summary: {
-      total: finished.length + finishedOther.length + pending.length,
+      total:
+        finished.length +
+        finishedOther.length +
+        pending.length +
+        discarded.length +
+        discardedOther.length,
+      discarded: discarded.length,
+      discardedTotal: discarded.length + discardedOther.length,
       finishedTotal: finished.length + finishedOther.length,
       finished: finished.length,
       finishedOnTime: finished.filter((p) => p.onTime === true).length,
@@ -451,7 +514,8 @@ export function reportToPlainText(r: PortfolioReport): string {
   lines.push("");
   lines.push(
     `Resumen: ${s.finished} finalizado(s) en ${r.monthLabel} (${s.finishedOnTime} a tiempo, ${s.finishedLate} con retraso) · ` +
-      `${s.pending} pendiente(s), ${s.overdue} vencido(s), ${s.offTrack} fuera de curso.`
+      `${s.pending} pendiente(s), ${s.overdue} vencido(s), ${s.offTrack} fuera de curso` +
+      (s.discarded ? ` · ${s.discarded} descartado(s) en el mes.` : ".")
   );
   lines.push("");
   lines.push(`FINALIZADOS EN ${r.monthLabel.toUpperCase()}`);
@@ -461,6 +525,15 @@ export function reportToPlainText(r: PortfolioReport): string {
     lines.push(
       `- [${p.country}] ${p.name} · ${p.owner ?? "Sin responsable"} · cierre ${shortDate(p.completedOn)} (plan ${shortDate(p.dueOn)}, ${timing})`
     );
+  }
+  if (r.discarded.length) {
+    lines.push("");
+    lines.push(`DESCARTADOS EN ${r.monthLabel.toUpperCase()}`);
+    for (const p of r.discarded) {
+      lines.push(
+        `- [${p.country}] ${p.name} · ${p.owner ?? "Sin responsable"} · descartado el ${shortDate(p.discardedOn)}`
+      );
+    }
   }
   lines.push("");
   lines.push("PENDIENTES");
