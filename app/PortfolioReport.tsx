@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import OpenByCountryChart from "./OpenByCountryChart";
 import {
   DEFAULT_PORTFOLIO_URL,
   previousMonth,
@@ -268,6 +269,8 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
               tone="text-amber-600 dark:text-amber-400"
             />
           </div>
+
+          <OpenByCountryChart rows={report.byCountry} cut={shortDate(report.generatedOn)} />
 
           <div>
             <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">

@@ -173,11 +173,35 @@ describe("buildInformeEjecutivo", () => {
     }
   });
 
+  it("incluye la Gráfica 1 (nativa de Word) con los no finalizados por país", async () => {
+    const { zip, doc, text } = await docText(await buildInformeEjecutivo(report));
+    expect(text).toContain("Gráfica 1.");
+    expect(text).toContain("Proyectos no finalizados por país");
+    // Parte de la gráfica, relación y tipo de contenido.
+    const chart = await zip.file("word/charts/chart1.xml")!.async("string");
+    expect(chart).toContain('<c:barDir val="bar"/>');
+    const rels = await zip.file("word/_rels/document.xml.rels")!.async("string");
+    expect(rels).toContain('Target="charts/chart1.xml"');
+    const ct = await zip.file("[Content_Types].xml")!.async("string");
+    expect(ct).toContain('PartName="/word/charts/chart1.xml"');
+    expect(doc).toContain('r:id="rIdChartNoFinalizados"');
+    // Abiertos: Colombia 1, México 1, Perú 1 → orden de menor a mayor (empates por nombre, inverso).
+    const labels = Array.from(chart.matchAll(/<c:strLit>[\s\S]*?<\/c:strLit>/g))[0][0];
+    expect(labels).toContain("<c:v>Colombia</c:v>");
+    expect(labels).toContain("<c:v>México</c:v>");
+    expect(labels).toContain("<c:v>Perú</c:v>");
+    // La gráfica va después de la Tabla 3 y antes de 5.4 Indicadores.
+    expect(text.indexOf("Gráfica 1.")).toBeGreaterThan(text.indexOf("Tabla 3."));
+    expect(text.indexOf("Gráfica 1.")).toBeLessThan(text.indexOf("5.4 Indicadores"));
+  });
+
   it("funciona con un portafolio vacío", async () => {
     const empty = buildPortfolioReport("Vacío", [], { now: NOW });
     const { text } = await docText(await buildInformeEjecutivo(empty));
     expect(text).toContain("No se finalizaron proyectos en octubre de 2026.");
     expect(text).toContain("No hay proyectos abiertos.");
     expect(text).toContain("Sin decisiones pendientes");
+    // Sin abiertos no hay gráfica.
+    expect(text).not.toContain("Gráfica 1.");
   });
 });

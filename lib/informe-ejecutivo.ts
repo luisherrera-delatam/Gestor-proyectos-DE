@@ -12,6 +12,14 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import JSZip from "jszip";
 import {
+  CHART_CONTENT_TYPE,
+  CHART_REL_TYPE,
+  buildBarChartXml,
+  chartHeightInches,
+  chartParagraph,
+  type BarDatum,
+} from "./informe-chart";
+import {
   type PortfolioReport,
   type ProjectStatus,
   type ReportProject,
@@ -1105,7 +1113,68 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
   const bullets = conclusionItems(c).map((t) => setTexts(bulletTpl, [t]));
   els.splice(cFrom, cTo - cFrom + 1, ...bullets);
 
+  // Gráfica 1 (después de la fuente de la Tabla 3; va antes de las
+  // conclusiones, así que el splice de arriba no mueve este índice).
+  const chartData = openByCountryChart(r);
+  if (chartData.length) {
+    const captionEl = setTexts(els[M.openCaption[0]], [
+      "Gráfica 1.",
+      ` Proyectos no finalizados por país al ${c.cut}`,
+    ]);
+    const chartEl = chartParagraph(CHART_REL_ID, {
+      widthIn: 6.2,
+      heightIn: chartHeightInches(chartData.length),
+      docPrId: 9001,
+      name: "Gráfica 1",
+      descr: `Proyectos no finalizados por país: ${chartData.map((d) => `${d.label} ${d.value}`).join(", ")}`,
+    });
+    const sourceEl = setTexts(els[M.openSource[0]], [
+      `${sourceLine} Proyectos abiertos (sin finalizar ni descartar), con y sin fecha de entrega.`,
+    ]);
+    els.splice(M.openSource[0] + 1, 0, captionEl, chartEl, sourceEl);
+  }
+
   return templateXml.slice(0, bodyStart) + els.join("") + templateXml.slice(bodyEnd);
+}
+
+const CHART_REL_ID = "rIdChartNoFinalizados";
+const CHART_PART = "word/charts/chart1.xml";
+
+/** Datos de la Gráfica 1: proyectos abiertos por país (solo países con abiertos). */
+export function openByCountryChart(r: PortfolioReport): BarDatum[] {
+  return r.byCountry.filter((x) => x.open > 0).map((x) => ({ label: x.country, value: x.open }));
+}
+
+/** Agrega la parte de la gráfica, su relación y su tipo de contenido al paquete. */
+async function addChartPart(zip: JSZip, data: BarDatum[]) {
+  zip.file(
+    CHART_PART,
+    buildBarChartXml(data, { seriesName: "Proyectos no finalizados", color: "1A6FB4" })
+  );
+
+  const relsPath = "word/_rels/document.xml.rels";
+  const rels = await zip.file(relsPath)!.async("string");
+  if (!rels.includes(CHART_REL_ID)) {
+    zip.file(
+      relsPath,
+      rels.replace(
+        "</Relationships>",
+        `<Relationship Id="${CHART_REL_ID}" Type="${CHART_REL_TYPE}" Target="charts/chart1.xml"/></Relationships>`
+      )
+    );
+  }
+
+  const ctPath = "[Content_Types].xml";
+  const ct = await zip.file(ctPath)!.async("string");
+  if (!ct.includes("/word/charts/chart1.xml")) {
+    zip.file(
+      ctPath,
+      ct.replace(
+        "</Types>",
+        `<Override PartName="/word/charts/chart1.xml" ContentType="${CHART_CONTENT_TYPE}"/></Types>`
+      )
+    );
+  }
 }
 
 function patchHeader(xml: string, r: PortfolioReport, c: Ctx): string {
@@ -1136,6 +1205,8 @@ export async function buildInformeEjecutivo(
   const docPath = "word/document.xml";
   const doc = await zip.file(docPath)!.async("string");
   zip.file(docPath, buildDocumentXml(doc, r, opts));
+  const chartData = openByCountryChart(r);
+  if (chartData.length) await addChartPart(zip, chartData);
 
   for (const name of Object.keys(zip.files)) {
     if (/^word\/header\d*\.xml$/.test(name)) {
