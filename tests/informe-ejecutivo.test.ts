@@ -85,7 +85,8 @@ describe("buildInformeEjecutivo", () => {
     expect(text).toContain("01/10/2026 al 31/10/2026");
     expect(text).toContain("CO-26-DS-001: INTEGRACION ZAPHIRO");
     expect(text).toContain("Vencido 51 días");
-    expect(text).toContain("Rojo (09/09)");
+    expect(text).toContain("Fuera de curso (09/09)");
+    expect(text).toContain("En curso (22/10)");
     expect(text).toContain("+2 días");
     expect(text).toContain("Finalizados fuera de octubre");
     // Los caracteres especiales se escapan (el XML sigue siendo válido).
@@ -112,6 +113,26 @@ describe("buildInformeEjecutivo", () => {
     expect(rowsOf("Desviación")).toBe(3);
     // Encabezado + 3 abiertos.
     expect(rowsOf("Situación")).toBe(4);
+  });
+
+  it("colorea el estatus de Asana según el estado del proyecto", async () => {
+    const { doc } = await docText(await buildInformeEjecutivo(report));
+    const t3 = splitTopLevel(doc.slice(doc.indexOf("<w:body>") + 8, doc.indexOf("</w:body>"))).find(
+      (x) => x.startsWith("<w:tbl") && plainText(x).includes("Situación")
+    )!;
+    const cellOf = (text: string) =>
+      Array.from(t3.matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g))
+        .map((m) => m[0])
+        .find((c) => plainText(c).startsWith(text))!;
+    const red = cellOf("Fuera de curso");
+    expect(red).toContain('w:fill="FDE7E7"');
+    expect(red).toContain('<w:color w:val="B42318"/>');
+    const green = cellOf("En curso");
+    expect(green).toContain('w:fill="E3F4EA"');
+    expect(green).toContain('<w:color w:val="1B7F3B"/>');
+    // El orden de tcPr se respeta: shd después de tcBorders y antes de tcMar.
+    expect(red.indexOf("<w:shd")).toBeGreaterThan(red.indexOf("</w:tcBorders>"));
+    expect(red.indexOf("<w:shd")).toBeLessThan(red.indexOf("<w:tcMar>"));
   });
 
   it("funciona con un portafolio vacío", async () => {

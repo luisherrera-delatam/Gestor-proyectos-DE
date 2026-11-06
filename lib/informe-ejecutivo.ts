@@ -126,15 +126,67 @@ function buildTable(head: string, rows: string[]): string {
  * con textos nuevos), clona la primera fila de datos para cada fila nueva y,
  * si se indica, usa la última fila de la plantilla como fila de totales.
  */
+export interface CellStyle {
+  /** Color de fondo de la celda (hex sin #). */
+  fill: string;
+  /** Color del texto (hex sin #). */
+  color: string;
+  bold?: boolean;
+}
+
+/** Aplica fondo y color de texto a una celda. */
+export function styleCell(cell: string, st: CellStyle): string {
+  const shd = `<w:shd w:val="clear" w:color="auto" w:fill="${st.fill}"/>`;
+  let out = cell.replace(/<w:shd\b[^>]*\/>/, "");
+  // Orden del esquema en tcPr: tcW, gridSpan, vMerge, tcBorders, shd, noWrap, tcMar…
+  if (out.includes("</w:tcBorders>")) out = out.replace("</w:tcBorders>", `</w:tcBorders>${shd}`);
+  else if (/<w:tcW\b[^>]*\/>/.test(out)) out = out.replace(/(<w:tcW\b[^>]*\/>)/, `$1${shd}`);
+  else out = out.replace("<w:tcPr>", `<w:tcPr>${shd}`);
+  return out.replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (_all, inner: string) => {
+    let r = inner
+      .replace(/<w:color\b[^>]*\/>/, "")
+      .replace(/<w:b\b[^>]*\/>/, "")
+      .replace(/<w:bCs\b[^>]*\/>/, "");
+    const bold = st.bold ? "<w:b/><w:bCs/>" : "";
+    // Orden en rPr: rFonts, b, bCs, …, color, sz.
+    r = /<w:rFonts\b[^>]*\/>/.test(r)
+      ? r.replace(/(<w:rFonts\b[^>]*\/>)/, `$1${bold}`)
+      : `${bold}${r}`;
+    r = /<w:sz\b/.test(r)
+      ? r.replace(/<w:sz\b/, `<w:color w:val="${st.color}"/><w:sz`)
+      : `${r}<w:color w:val="${st.color}"/>`;
+    return `<w:rPr>${r}</w:rPr>`;
+  });
+}
+
+function styleRow(row: string, styles: (CellStyle | null)[]): string {
+  let i = 0;
+  return row.replace(/<w:tc>[\s\S]*?<\/w:tc>/g, (cell) => {
+    const st = styles[i++];
+    return st ? styleCell(cell, st) : cell;
+  });
+}
+
 function regenTable(
   tbl: string,
   data: string[][],
-  opts: { header?: (string | null)[]; total?: string[] } = {}
+  opts: {
+    header?: (string | null)[];
+    total?: string[];
+    /** Estilo por celda de cada fila de datos (null = el de la plantilla). */
+    styles?: (CellStyle | null)[][];
+  } = {}
 ): string {
   const { head, rows } = parseTable(tbl);
   const header = opts.header ? fillRow(rows[0], opts.header) : rows[0];
   const sample = rows[1];
-  const out = [header, ...data.map((d) => fillRow(sample, d))];
+  const out = [
+    header,
+    ...data.map((d, i) => {
+      const row = fillRow(sample, d);
+      return opts.styles?.[i] ? styleRow(row, opts.styles[i]) : row;
+    }),
+  ];
   if (opts.total) out.push(fillRow(rows[rows.length - 1], opts.total));
   return buildTable(head, out);
 }
@@ -220,21 +272,29 @@ function projectTitle(name: string): string {
   return i > 0 && i <= 24 ? name.slice(i + 1).trim() : name;
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  on_track: "Verde",
-  at_risk: "Amarillo",
-  off_track: "Rojo",
-  on_hold: "En pausa",
-  complete: "Completo",
+/** Estado del proyecto en Asana con su color (verde, amarillo, rojo, azul). */
+export const STATUS_STYLE: Record<string, { label: string } & CellStyle> = {
+  on_track: { label: "En curso", fill: "E3F4EA", color: "1B7F3B", bold: true },
+  at_risk: { label: "En riesgo", fill: "FFF4D6", color: "9A6700", bold: true },
+  off_track: { label: "Fuera de curso", fill: "FDE7E7", color: "B42318", bold: true },
+  on_hold: { label: "En pausa", fill: "E6EEF9", color: "1A6FB4", bold: true },
+  complete: { label: "Completado", fill: "E3F4EA", color: "1B7F3B", bold: true },
 };
 
-function statusColor(s: ProjectStatus): string {
-  return s ? STATUS_COLOR[s] ?? s : "Sin estatus";
+const NO_STATUS: { label: string } & CellStyle = {
+  label: "Sin estatus",
+  fill: "F2F2F2",
+  color: "6B6B6B",
+};
+
+function statusStyle(s: ProjectStatus) {
+  return (s && STATUS_STYLE[s]) || NO_STATUS;
 }
 
-function statusCell(p: ReportProject): string {
-  const c = statusColor(p.status);
-  return p.statusDate ? `${c} (${dm(p.statusDate)})` : c;
+/** "En curso (28/10)": estado del proyecto y fecha del último estatus. */
+export function statusCell(p: Pick<ReportProject, "status" | "statusDate">): string {
+  const label = statusStyle(p.status).label;
+  return p.statusDate ? `${label} (${dm(p.statusDate)})` : label;
 }
 
 function situation(p: ReportProject): string {
@@ -930,11 +990,17 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
             statusCell(p),
             situation(p),
           ])
-        : [["—", "No hay proyectos abiertos.", "", "", "", ""]]
+        : [["—", "No hay proyectos abiertos.", "", "", "", ""]],
+      {
+        // La columna "Estatus Asana" lleva el color del estado del proyecto.
+        styles: c.openByCountry.map((p) => [null, null, null, null, statusStyle(p.status), null]),
+      }
     )
   );
   set("openSource", (e) =>
-    setTexts(e, [`${sourceLine} Entre paréntesis, fecha del último estatus publicado.`])
+    setTexts(e, [
+      `${sourceLine} Estatus Asana: estado del proyecto con su color (verde = en curso, amarillo = en riesgo, rojo = fuera de curso, azul = en pausa); entre paréntesis, fecha del último estatus publicado.`,
+    ])
   );
 
   // 5.4 Indicadores
