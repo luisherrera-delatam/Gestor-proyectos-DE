@@ -99,6 +99,33 @@ export interface ReportProject {
   /** Pendiente en plazo: días que faltan para la entrega. */
   daysLeft: number | null;
   url: string;
+  /**
+   * Estado tomado de Asana: "Finalizado" si el proyecto está marcado como
+   * completado (o su último estatus es "complete"); si no, el estatus actual.
+   */
+  state: string;
+}
+
+export interface MonthPoint {
+  /** "YYYY-MM" */
+  month: string;
+  /** Proyectos finalizados en el mes. */
+  finished: number;
+  /** Finalizados acumulados en el año hasta ese mes. */
+  finishedCum: number;
+  /** Proyectos abiertos cuya fecha de entrega cae en el mes. */
+  pending: number;
+  /** Pendientes acumulados en el año hasta ese mes. */
+  pendingCum: number;
+}
+
+export interface MonthlySeries {
+  year: number;
+  months: MonthPoint[];
+  /** Abiertos sin fecha de entrega (no entran en la gráfica). */
+  pendingNoDue: number;
+  /** Abiertos con entrega en años anteriores (no entran en la gráfica). */
+  pendingPriorYears: number;
 }
 
 export interface CountryRow {
@@ -128,6 +155,8 @@ export interface PortfolioReport {
   byCountry: CountryRow[];
   /** Días con 4 o más cierres (posible cierre en bloque / depuración). */
   bulkClosures: { date: string; count: number }[];
+  /** Series mensuales del año del informe, para las gráficas. */
+  monthly: MonthlySeries;
   summary: {
     /** Proyectos del portafolio (finalizados en cualquier fecha + abiertos). */
     total: number;
@@ -267,6 +296,7 @@ function toReportProject(p: PortfolioProject, today: string): ReportProject {
         : null,
     daysLeft: !completedOn && dueOn && dueOn >= today ? diffDays(today, dueOn) : null,
     url: `https://app.asana.com/0/${p.gid}/list`,
+    state: completedOn || status === "complete" ? "Finalizado" : statusLabel(status),
   };
 }
 
@@ -354,6 +384,25 @@ export function buildPortfolioReport(
   for (const p of [...finished, ...finishedOther]) {
     if (p.completedOn) perDay.set(p.completedOn, (perDay.get(p.completedOn) ?? 0) + 1);
   }
+  const year = Number(month.slice(0, 4));
+  const finishedAll = [...finished, ...finishedOther];
+  let fCum = 0;
+  let pCum = 0;
+  const months: MonthPoint[] = Array.from({ length: 12 }, (_, i) => {
+    const key = `${year}-${String(i + 1).padStart(2, "0")}`;
+    const f = finishedAll.filter((p) => p.completedOn?.startsWith(`${key}-`)).length;
+    const pe = pending.filter((p) => p.dueOn?.startsWith(`${key}-`)).length;
+    fCum += f;
+    pCum += pe;
+    return { month: key, finished: f, finishedCum: fCum, pending: pe, pendingCum: pCum };
+  });
+  const monthly: MonthlySeries = {
+    year,
+    months,
+    pendingNoDue: pending.filter((p) => !p.dueOn).length,
+    pendingPriorYears: pending.filter((p) => p.dueOn && p.dueOn < `${year}-01-01`).length,
+  };
+
   const bulkClosures = Array.from(perDay.entries())
     .filter(([, count]) => count >= 4)
     .map(([date, count]) => ({ date, count }))
@@ -376,6 +425,7 @@ export function buildPortfolioReport(
     pending,
     byCountry,
     bulkClosures,
+    monthly,
     summary: {
       total: finished.length + finishedOther.length + pending.length,
       finishedTotal: finished.length + finishedOther.length,

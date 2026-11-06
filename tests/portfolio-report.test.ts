@@ -234,3 +234,29 @@ describe("totales por país", () => {
     expect(r.finished.find((p) => p.gid === "2")?.daysLate).toBe(2);
   });
 });
+
+describe("estado y series mensuales", () => {
+  const r = buildPortfolioReport("X", PROJECTS, { now: NOW });
+
+  it("marca como Finalizado los proyectos completados en Asana", () => {
+    expect(r.finished.every((p) => p.state === "Finalizado")).toBe(true);
+    expect(r.pending.find((p) => p.gid === "7")?.state).toBe("Fuera de curso");
+  });
+
+  it("cuenta finalizados por mes de cierre y pendientes por mes de entrega, con acumulado", () => {
+    const m = (k: string) => r.monthly.months.find((x) => x.month === k)!;
+    expect(r.monthly.year).toBe(2026);
+    expect(r.monthly.months).toHaveLength(12);
+    // Cierres: 1 en sep, 3 en oct (uno es 31/10 en CDMX), 1 en nov.
+    expect(m("2026-09").finished).toBe(1);
+    expect(m("2026-10").finished).toBe(3);
+    expect(m("2026-11").finished).toBe(1);
+    expect(m("2026-12").finishedCum).toBe(5);
+    // Pendientes por fecha de entrega: sep (8), nov (5, 6 y 10 → 6, 9, 10).
+    expect(m("2026-09").pending).toBe(1);
+    expect(m("2026-11").pending).toBe(3);
+    expect(m("2026-12").pendingCum).toBe(4);
+    expect(r.monthly.pendingNoDue).toBe(1);
+    expect(r.monthly.pendingPriorYears).toBe(0);
+  });
+});

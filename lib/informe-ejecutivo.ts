@@ -191,6 +191,26 @@ function regenTable(
   return buildTable(head, out);
 }
 
+/**
+ * Inserta una columna nueva en `at` clonando la celda de la columna anterior en
+ * cada fila, y reparte los anchos indicados (twips) entre todas las columnas.
+ */
+export function insertColumn(tbl: string, at: number, widths: number[]): string {
+  const grid = `<w:tblGrid>${widths.map((w) => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>`;
+  let out = tbl.replace(/<w:tblGrid>[\s\S]*?<\/w:tblGrid>/, grid);
+  out = out.replace(/<w:tr[\s>][\s\S]*?<\/w:tr>/g, (row) => {
+    const cs = Array.from(row.matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g)).map((m) => m[0]);
+    if (cs.length !== widths.length - 1) return row;
+    const next = [...cs.slice(0, at), cs[at - 1], ...cs.slice(at)].map((c, i) =>
+      c.replace(/<w:tcW\b[^>]*\/>/, `<w:tcW w:type="dxa" w:w="${widths[i]}"/>`)
+    );
+    const first = row.indexOf("<w:tc>");
+    const last = row.lastIndexOf("</w:tc>") + "</w:tc>".length;
+    return row.slice(0, first) + next.join("") + row.slice(last);
+  });
+  return out;
+}
+
 /** Cambia solo algunas filas de una tabla existente (índice → valores). */
 function editRows(tbl: string, edits: Record<number, (string | null)[]>): string {
   const { head, rows } = parseTable(tbl);
@@ -291,11 +311,13 @@ function statusStyle(s: ProjectStatus) {
   return (s && STATUS_STYLE[s]) || NO_STATUS;
 }
 
-/** "En curso (28/10)": estado del proyecto y fecha del último estatus. */
-export function statusCell(p: Pick<ReportProject, "status" | "statusDate">): string {
-  const label = statusStyle(p.status).label;
-  return p.statusDate ? `${label} (${dm(p.statusDate)})` : label;
+/** Estado del proyecto en Asana: "En curso", "Fuera de curso"… */
+export function statusCell(p: Pick<ReportProject, "status">): string {
+  return statusStyle(p.status).label;
 }
+
+/** Anchos (twips) de la Tabla 3 con la columna "Último estatus" (total 10080). */
+const OPEN_TABLE_WIDTHS = [1300, 2410, 1400, 1150, 1250, 1150, 1420];
 
 function situation(p: ReportProject): string {
   if (p.overdue && p.daysLate != null) {
@@ -980,7 +1002,8 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
   set("openCaption", (e) => setTexts(e, ["Tabla 3.", ` Proyectos abiertos al ${c.cut}, por país`]));
   set("openTable", (e) =>
     regenTable(
-      e,
+      // Columna nueva "Último estatus" después de "Estatus Asana".
+      insertColumn(e, 5, OPEN_TABLE_WIDTHS),
       c.openByCountry.length
         ? c.openByCountry.map((p) => [
             p.country,
@@ -988,18 +1011,20 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
             p.owner ?? "—",
             p.dueOn ? dmy(p.dueOn) : "Sin fecha",
             statusCell(p),
+            p.statusDate ? dmy(p.statusDate) : "Sin estatus",
             situation(p),
           ])
-        : [["—", "No hay proyectos abiertos.", "", "", "", ""]],
+        : [["—", "No hay proyectos abiertos.", "", "", "", "", ""]],
       {
+        header: [null, null, null, null, "Estatus Asana", "Último estatus", null],
         // La columna "Estatus Asana" lleva el color del estado del proyecto.
-        styles: c.openByCountry.map((p) => [null, null, null, null, statusStyle(p.status), null]),
+        styles: c.openByCountry.map((p) => [null, null, null, null, statusStyle(p.status), null, null]),
       }
     )
   );
   set("openSource", (e) =>
     setTexts(e, [
-      `${sourceLine} Estatus Asana: estado del proyecto con su color (verde = en curso, amarillo = en riesgo, rojo = fuera de curso, azul = en pausa); entre paréntesis, fecha del último estatus publicado.`,
+      `${sourceLine} Estatus Asana: estado del proyecto con su color (verde = en curso, amarillo = en riesgo, rojo = fuera de curso, azul = en pausa). Último estatus: fecha en que se publicó el último reporte de estado en Asana.`,
     ])
   );
 

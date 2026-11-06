@@ -10,6 +10,7 @@ import {
   type PortfolioReport as Report,
   type ReportProject,
 } from "@/lib/portfolio-report";
+import MonthlyCharts from "./MonthlyCharts";
 
 interface Props {
   /** Hay sesión OAuth (si no, se usa el token manual). */
@@ -269,6 +270,8 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
             />
           </div>
 
+          <MonthlyCharts monthly={report.monthly} today={report.generatedOn} />
+
           <div>
             <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
               Finalizados en {report.monthLabel} ({s.finished})
@@ -281,7 +284,18 @@ export default function PortfolioReport({ connected, token, onDone }: Props) {
               <ul className="divide-y divide-gray-200 dark:divide-gray-700 text-xs">
                 {report.finished.map((p) => (
                   <li key={p.gid} className="py-2">
-                    <ProjectName p={p} />
+                    <div className="flex items-start justify-between gap-2">
+                      <ProjectName p={p} />
+                      <span
+                        title="Estado en Asana: proyecto marcado como completado"
+                        className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800 dark:bg-green-950 dark:text-green-300"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+                          <path d="m5 12 5 5 9-10" />
+                        </svg>
+                        {p.state}
+                      </span>
+                    </div>
                     <div className="mt-0.5 flex flex-wrap gap-x-3 text-dxgray dark:text-gray-400">
                       <span>{p.country}</span>
                       <span>{p.owner ?? "Sin responsable"}</span>

@@ -105,23 +105,25 @@ export async function buildPortfolioReportExcel(report: PortfolioReport): Promis
 
   // ── Finalizados ──
   const fin = wb.addWorksheet("Finalizados", { views: [{ state: "frozen", ySplit: 3 }] });
-  fin.columns = [{ width: 20 }, { width: 58 }, { width: 28 }, { width: 16 }, { width: 16 }, { width: 14 }];
-  addTitle(fin, "F", `Proyectos finalizados — ${report.monthLabel}`, subtitle);
-  addHeader(fin, 3, ["País", "Proyecto", "Responsable", "Entrega planeada", "Fecha de cierre", "Cumplimiento"]);
+  fin.columns = [{ width: 20 }, { width: 58 }, { width: 28 }, { width: 14 }, { width: 16 }, { width: 16 }, { width: 14 }];
+  addTitle(fin, "G", `Proyectos finalizados — ${report.monthLabel}`, subtitle);
+  addHeader(fin, 3, ["País", "Proyecto", "Responsable", "Estado", "Entrega planeada", "Fecha de cierre", "Cumplimiento"]);
   report.finished.forEach((p, i) => {
     const row = fin.getRow(4 + i);
     row.getCell(1).value = p.country;
     row.getCell(2).value = { text: p.name, hyperlink: p.url };
     row.getCell(3).value = p.owner ?? "—";
-    row.getCell(4).value = shortDate(p.dueOn);
-    row.getCell(5).value = shortDate(p.completedOn);
-    row.getCell(6).value = p.onTime === null ? "Sin fecha" : p.onTime ? "A tiempo" : "Con retraso";
-    styleDataRow(row, 6, i % 2 === 0 ? SOFT : WHITE);
+    row.getCell(4).value = p.state;
+    row.getCell(5).value = shortDate(p.dueOn);
+    row.getCell(6).value = shortDate(p.completedOn);
+    row.getCell(7).value = p.onTime === null ? "Sin fecha" : p.onTime ? "A tiempo" : "Con retraso";
+    styleDataRow(row, 7, i % 2 === 0 ? SOFT : WHITE);
+    row.getCell(4).font = { name: "Calibri", size: 10, bold: true, color: { argb: GREEN } };
     if (p.onTime !== null) {
-      row.getCell(6).font = { name: "Calibri", size: 10, bold: true, color: { argb: p.onTime ? GREEN : RED } };
+      row.getCell(7).font = { name: "Calibri", size: 10, bold: true, color: { argb: p.onTime ? GREEN : RED } };
     }
   });
-  if (report.finished.length === 0) addEmpty(fin, 4, "F", "No se finalizaron proyectos en este mes.");
+  if (report.finished.length === 0) addEmpty(fin, 4, "G", "No se finalizaron proyectos en este mes.");
 
   // ── Pendientes ──
   const pen = wb.addWorksheet("Pendientes", { views: [{ state: "frozen", ySplit: 3 }] });

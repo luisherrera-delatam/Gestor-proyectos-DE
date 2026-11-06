@@ -85,8 +85,11 @@ describe("buildInformeEjecutivo", () => {
     expect(text).toContain("01/10/2026 al 31/10/2026");
     expect(text).toContain("CO-26-DS-001: INTEGRACION ZAPHIRO");
     expect(text).toContain("Vencido 51 días");
-    expect(text).toContain("Fuera de curso (09/09)");
-    expect(text).toContain("En curso (22/10)");
+    expect(text).toContain("Fuera de curso");
+    expect(text).not.toContain("Fuera de curso (09/09)");
+    // Columna "Último estatus" con la fecha completa.
+    expect(text).toContain("Último estatus");
+    expect(text).toContain("09/09/2026");
     expect(text).toContain("+2 días");
     expect(text).toContain("Finalizados fuera de octubre");
     // Los caracteres especiales se escapan (el XML sigue siendo válido).
@@ -113,6 +116,14 @@ describe("buildInformeEjecutivo", () => {
     expect(rowsOf("Desviación")).toBe(3);
     // Encabezado + 3 abiertos.
     expect(rowsOf("Situación")).toBe(4);
+    const t3 = tables.find((x) => plainText(x).includes("Situación"))!;
+    expect((t3.match(/<w:gridCol /g) || []).length).toBe(7);
+    // Cada fila tiene 7 celdas y los anchos suman el ancho de la tabla.
+    for (const row of t3.match(/<w:tr[\s>][\s\S]*?<\/w:tr>/g)!) {
+      expect((row.match(/<w:tc>/g) || []).length).toBe(7);
+    }
+    const widths = Array.from(t3.matchAll(/<w:gridCol w:w="(\d+)"/g)).map((m) => Number(m[1]));
+    expect(widths.reduce((a, b) => a + b, 0)).toBe(10080);
   });
 
   it("colorea el estatus de Asana según el estado del proyecto", async () => {
