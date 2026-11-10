@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ExcelJS from "exceljs";
 import {
+  attachProgress,
   buildPortfolioReport,
   countryFromPortfolioName,
   extractPortfolioGid,
@@ -176,7 +177,7 @@ describe("buildPortfolioReportExcel", () => {
     await wb.xlsx.load(buffer as any);
     expect(wb.worksheets.map((w) => w.name)).toEqual(["Resumen", "Finalizados", "Pendientes", "Descartados"]);
     expect(wb.getWorksheet("Resumen")!.getCell("B4").value).toBe(3);
-    expect(wb.getWorksheet("Pendientes")!.getCell("F4").value).toBe("VENCIDO");
+    expect(wb.getWorksheet("Pendientes")!.getCell("G4").value).toBe("VENCIDO");
   });
 
   it("maneja un informe vacío", async () => {
@@ -334,5 +335,40 @@ describe("subportafolios nombrados por país (Implementaciones)", () => {
     expect(String(wb.getWorksheet("Resumen")!.getCell("A1").value)).toContain(
       "Informe de portafolio de implementaciones"
     );
+  });
+});
+
+describe("avance y descartados completos", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("attachProgress calcula el % con task_counts y deja null sin tareas", async () => {
+    const r = buildPortfolioReport("X", PROJECTS, { now: NOW });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const gid = url.match(/projects\/(\w+)\/task_counts/)![1];
+        const data = gid === "6" ? { num_tasks: 8, num_completed_tasks: 2 } : { num_tasks: 0, num_completed_tasks: 0 };
+        return new Response(JSON.stringify({ data }), { status: 200 });
+      })
+    );
+    await attachProgress(r.pending, "tok");
+    expect(r.pending.find((p) => p.gid === "6")?.pct).toBe(25);
+    expect(r.pending.find((p) => p.gid === "8")?.pct).toBeNull();
+  });
+
+  it("discardedAll lista todos los descartados, del más reciente al más antiguo", () => {
+    const d = (gid: string, at: string) =>
+      proj({
+        gid,
+        name: `MX-26-DS-0${gid}: X`,
+        completed: true,
+        completed_at: at,
+        current_status_update: { status_type: "dropped", created_at: at },
+      });
+    const r = buildPortfolioReport("X", [...PROJECTS, d("91", "2026-06-10T18:00:00Z"), d("92", "2026-10-03T18:00:00Z")], {
+      now: NOW,
+    });
+    expect(r.discardedAll.map((p) => p.gid)).toEqual(["92", "91"]);
+    expect(r.discarded.map((p) => p.gid)).toEqual(["92"]);
   });
 });

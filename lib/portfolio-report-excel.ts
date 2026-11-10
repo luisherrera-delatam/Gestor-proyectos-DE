@@ -132,24 +132,27 @@ export async function buildPortfolioReportExcel(
 
   // ── Pendientes ──
   const pen = wb.addWorksheet("Pendientes", { views: [{ state: "frozen", ySplit: 3 }] });
-  pen.columns = [{ width: 20 }, { width: 58 }, { width: 28 }, { width: 16 }, { width: 16 }, { width: 12 }];
-  addTitle(pen, "F", "Proyectos pendientes", subtitle);
-  addHeader(pen, 3, ["País", "Proyecto", "Responsable", "Fecha de entrega", "Estado", "Vencido"]);
+  pen.columns = [{ width: 20 }, { width: 58 }, { width: 28 }, { width: 16 }, { width: 12 }, { width: 16 }, { width: 12 }];
+  addTitle(pen, "G", "Proyectos pendientes", subtitle);
+  addHeader(pen, 3, ["País", "Proyecto", "Responsable", "Fecha de entrega", "% Avance", "Estado", "Vencido"]);
   report.pending.forEach((p, i) => {
     const row = pen.getRow(4 + i);
     row.getCell(1).value = p.country;
     row.getCell(2).value = { text: p.name, hyperlink: p.url };
     row.getCell(3).value = p.owner ?? "—";
     row.getCell(4).value = shortDate(p.dueOn);
-    row.getCell(5).value = statusLabel(p.status);
-    row.getCell(6).value = p.overdue ? "VENCIDO" : "";
-    styleDataRow(row, 6, p.overdue ? RED_SOFT : i % 2 === 0 ? SOFT : WHITE);
-    if (p.overdue) row.getCell(6).font = { name: "Calibri", size: 10, bold: true, color: { argb: RED } };
+    row.getCell(5).value = p.pct == null ? "—" : p.pct / 100;
+    row.getCell(6).value = statusLabel(p.status);
+    row.getCell(7).value = p.overdue ? "VENCIDO" : "";
+    styleDataRow(row, 7, p.overdue ? RED_SOFT : i % 2 === 0 ? SOFT : WHITE);
+    if (p.pct != null) row.getCell(5).numFmt = "0%";
+    row.getCell(5).alignment = { vertical: "middle", horizontal: "center" };
+    if (p.overdue) row.getCell(7).font = { name: "Calibri", size: 10, bold: true, color: { argb: RED } };
     if (p.status === "off_track" || p.status === "at_risk") {
-      row.getCell(5).font = { name: "Calibri", size: 10, bold: true, color: { argb: RED } };
+      row.getCell(6).font = { name: "Calibri", size: 10, bold: true, color: { argb: RED } };
     }
   });
-  if (report.pending.length === 0) addEmpty(pen, 4, "F", "No hay proyectos pendientes.");
+  if (report.pending.length === 0) addEmpty(pen, 4, "G", "No hay proyectos pendientes.");
 
   // ── Descartados ──
   const dis = wb.addWorksheet("Descartados", { views: [{ state: "frozen", ySplit: 3 }] });

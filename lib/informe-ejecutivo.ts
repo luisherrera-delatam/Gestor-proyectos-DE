@@ -330,6 +330,8 @@ const COUNTRY_TABLE_WIDTHS = [2330, 1000, 1450, 1450, 1150, 1400, 1300];
 
 /** Anchos (twips) de la Tabla 3 con la columna "Último estatus" (total 10080). */
 const OPEN_TABLE_WIDTHS = [1300, 2410, 1400, 1150, 1250, 1150, 1420];
+/** Anchos finales de la Tabla 3 con "% Avance" después de "Entrega" (total 10080). */
+const OPEN_TABLE_WIDTHS_PCT = [1250, 1720, 1420, 1180, 900, 1150, 1180, 1280];
 
 function situation(p: ReportProject): string {
   if (p.overdue && p.daysLate != null) {
@@ -1052,29 +1054,31 @@ export function buildDocumentXml(templateXml: string, r: PortfolioReport, opts: 
   set("openCaption", (e) => setTexts(e, ["Tabla 3.", ` Proyectos abiertos al ${c.cut}, por país`]));
   set("openTable", (e) =>
     regenTable(
-      // Columna nueva "Último estatus" después de "Estatus Asana".
-      insertColumn(e, 5, OPEN_TABLE_WIDTHS),
+      // Columnas nuevas: "Último estatus" después de "Estatus Asana" y
+      // "% Avance" después de "Entrega".
+      insertColumn(insertColumn(e, 5, OPEN_TABLE_WIDTHS), 4, OPEN_TABLE_WIDTHS_PCT),
       c.openByCountry.length
         ? c.openByCountry.map((p) => [
             p.country,
             p.name,
             p.owner ?? "—",
             p.dueOn ? dmy(p.dueOn) : "Sin fecha",
+            p.pct == null ? "—" : `${p.pct}%`,
             statusCell(p),
             p.statusDate ? dmy(p.statusDate) : "Sin estatus",
             situation(p),
           ])
-        : [["—", "No hay proyectos abiertos.", "", "", "", "", ""]],
+        : [["—", "No hay proyectos abiertos.", "", "", "", "", "", ""]],
       {
-        header: [null, null, null, null, "Estatus Asana", "Último estatus", null],
+        header: [null, null, null, null, "Avance", "Estatus Asana", "Último estatus", null],
         // La columna "Estatus Asana" lleva el color del estado del proyecto.
-        styles: c.openByCountry.map((p) => [null, null, null, null, statusStyle(p.status), null, null]),
+        styles: c.openByCountry.map((p) => [null, null, null, null, null, statusStyle(p.status), null, null]),
       }
     )
   );
   set("openSource", (e) =>
     setTexts(e, [
-      `${sourceLine} Estatus Asana: estado del proyecto con su color (verde = en curso, amarillo = en riesgo, rojo = fuera de curso, azul = en pausa). Último estatus: fecha en que se publicó el último reporte de estado en Asana.`,
+      `${sourceLine} Estatus Asana: estado del proyecto con su color (verde = en curso, amarillo = en riesgo, rojo = fuera de curso, azul = en pausa). Último estatus: fecha en que se publicó el último reporte de estado en Asana. Avance: tareas completadas sobre el total del proyecto.`,
     ])
   );
 

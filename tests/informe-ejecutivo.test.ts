@@ -121,10 +121,10 @@ describe("buildInformeEjecutivo", () => {
     // Encabezado + 3 abiertos.
     expect(rowsOf("Situación")).toBe(4);
     const t3 = tables.find((x) => plainText(x).includes("Situación"))!;
-    expect((t3.match(/<w:gridCol /g) || []).length).toBe(7);
-    // Cada fila tiene 7 celdas y los anchos suman el ancho de la tabla.
+    expect((t3.match(/<w:gridCol /g) || []).length).toBe(8);
+    // Cada fila tiene 8 celdas y los anchos suman el ancho de la tabla.
     for (const row of t3.match(/<w:tr[\s>][\s\S]*?<\/w:tr>/g)!) {
-      expect((row.match(/<w:tc>/g) || []).length).toBe(7);
+      expect((row.match(/<w:tc>/g) || []).length).toBe(8);
     }
     const widths = Array.from(t3.matchAll(/<w:gridCol w:w="(\d+)"/g)).map((m) => Number(m[1]));
     expect(widths.reduce((a, b) => a + b, 0)).toBe(10080);

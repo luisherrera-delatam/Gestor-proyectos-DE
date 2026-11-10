@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthError, applyRefreshedCookie, resolveAuth } from "@/lib/asana-auth";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import {
+  attachProgress,
   buildPortfolioReport,
   extractPortfolioGid,
   fetchPortfolioProjects,
@@ -16,7 +17,7 @@ export const maxDuration = 60;
 
 /**
  * POST /api/portfolio-report
- * Body: { token?, portfolio: gid | URL, month?: "YYYY-MM", format?: "json" | "xlsx" | "docx" }
+ * Body: { token?, portfolio: gid | URL, month?: "YYYY-MM", format?: "json" | "xlsx" | "docx" | "discarded" }
  * Devuelve el informe en JSON, como Excel o como Informe ejecutivo en Word
  * (plantilla corporativa lib/templates/informe-ejecutivo.docx).
  */
@@ -67,6 +68,22 @@ export async function POST(req: NextRequest) {
       subportfolios,
       gid: portfolioGid,
     });
+
+    // Solo los descartados (sección "Proyectos descartados").
+    if (body.format === "discarded") {
+      await attachProgress(report.discardedAll, auth.token);
+      return applyRefreshedCookie(
+        NextResponse.json({
+          portfolioName: report.portfolioName,
+          generatedOn: report.generatedOn,
+          discarded: report.discardedAll,
+        }),
+        auth
+      );
+    }
+
+    // % de avance de los proyectos que se muestran en el informe.
+    await attachProgress([...report.finished, ...report.pending, ...report.discarded], auth.token);
 
     if (body.format === "docx") {
       const me = await fetchCurrentUser(auth.token).catch(() => null);

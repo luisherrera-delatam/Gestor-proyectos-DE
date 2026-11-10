@@ -6,6 +6,7 @@ import type { WorkspaceProjects } from "@/lib/asana";
 import ProjectPicker from "./ProjectPicker";
 import CountryDashboard from "./CountryDashboard";
 import PortfolioReport from "./PortfolioReport";
+import DiscardedProjects from "./DiscardedProjects";
 import { DEFAULT_PORTFOLIO_URL, IMPLEMENTATIONS_PORTFOLIO_URL } from "@/lib/portfolio-report";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
@@ -573,7 +574,8 @@ export default function Home() {
           <p className="text-sm text-dxgray dark:text-gray-400 mt-1 sm:ml-[4.75rem]">
             Conéctate con Asana, elige un proyecto y genera el Acta de Inicio, el
             Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el formato
-            corporativo.
+            corporativo. Debajo están los informes de los portafolios de desarrollo
+            e implementaciones y los proyectos descartados.
           </p>
         </header>
 
@@ -1025,6 +1027,7 @@ export default function Home() {
               title="Informe de portafolio de desarrollo"
               defaultPortfolioUrl={DEFAULT_PORTFOLIO_URL}
               storageKey="asanaweb.report_portfolio.v1"
+              step={4}
             />
             <PortfolioReport
               connected={connected}
@@ -1033,6 +1036,25 @@ export default function Home() {
               title="Informe de portafolio de implementaciones"
               defaultPortfolioUrl={IMPLEMENTATIONS_PORTFOLIO_URL}
               storageKey="asanaweb.report_portfolio_imp.v1"
+              step={5}
+            />
+            <DiscardedProjects
+              connected={connected}
+              token={token}
+              onDone={setToast}
+              step={6}
+              sources={[
+                {
+                  label: "Desarrollo",
+                  defaultUrl: DEFAULT_PORTFOLIO_URL,
+                  storageKey: "asanaweb.report_portfolio.v1",
+                },
+                {
+                  label: "Implementaciones",
+                  defaultUrl: IMPLEMENTATIONS_PORTFOLIO_URL,
+                  storageKey: "asanaweb.report_portfolio_imp.v1",
+                },
+              ]}
             />
           </>
         )}

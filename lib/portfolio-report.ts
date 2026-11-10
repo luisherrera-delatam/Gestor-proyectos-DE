@@ -110,6 +110,8 @@ export interface ReportProject {
   /** Pendiente en plazo: días que faltan para la entrega. */
   daysLeft: number | null;
   url: string;
+  /** % de avance (tareas completadas / total). null = sin tareas o sin consultar. */
+  pct: number | null;
   /**
    * Estado tomado de Asana: "Descartado" si su último estatus es dropped;
    * "Finalizado" si está marcado como completado (o su último estatus es
@@ -167,6 +169,8 @@ export interface PortfolioReport {
   pending: ReportProject[];
   /** Proyectos descartados en el mes del informe. */
   discarded: ReportProject[];
+  /** Todos los proyectos descartados del portafolio, del más reciente al más antiguo. */
+  discardedAll: ReportProject[];
   /** Totales por país (todos los proyectos del portafolio), en orden alfabético. */
   byCountry: CountryRow[];
   /** Días con 4 o más cierres (posible cierre en bloque / depuración). */
@@ -344,6 +348,7 @@ function toReportProject(p: PortfolioProject, today: string): ReportProject {
         : null,
     daysLeft: open && dueOn && dueOn >= today ? diffDays(today, dueOn) : null,
     url: `https://app.asana.com/0/${p.gid}/list`,
+    pct: null,
     state: dropped
       ? "Descartado"
       : completedOn || status === "complete"
@@ -499,6 +504,9 @@ export function buildPortfolioReport(
     finished,
     pending,
     discarded,
+    discardedAll: [...discarded, ...discardedOther].sort(
+      (a, b) => (b.discardedOn ?? "").localeCompare(a.discardedOn ?? "") || a.name.localeCompare(b.name)
+    ),
     byCountry,
     bulkClosures,
     monthly,
@@ -607,6 +615,35 @@ async function fetchPortfolioItems(gid: string, token: string): Promise<Portfoli
     offset = res.next_page?.offset ?? null;
   } while (offset);
   return items;
+}
+
+/**
+ * Completa el % de avance de los proyectos indicados con el conteo de tareas de
+ * Asana (/projects/{gid}/task_counts). Los errores de un proyecto se ignoran.
+ */
+export async function attachProgress(projects: ReportProject[], token: string): Promise<void> {
+  const byGid = new Map<string, ReportProject[]>();
+  for (const p of projects) byGid.set(p.gid, [...(byGid.get(p.gid) ?? []), p]);
+  const gids = Array.from(byGid.keys());
+  let next = 0;
+  const worker = async () => {
+    while (next < gids.length) {
+      const gid = gids[next++];
+      try {
+        const res: { data: { num_tasks?: number; num_completed_tasks?: number } } = await asanaGet(
+          `/projects/${gid}/task_counts?opt_fields=num_tasks,num_completed_tasks`,
+          token
+        );
+        const total = res.data.num_tasks ?? 0;
+        const done = res.data.num_completed_tasks ?? 0;
+        const pct = total > 0 ? Math.round((done / total) * 100) : null;
+        for (const p of byGid.get(gid)!) p.pct = pct;
+      } catch {
+        // Sin permiso o error puntual: se deja sin %.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(8, gids.length) }, worker));
 }
 
 const MAX_PORTFOLIO_DEPTH = 4;

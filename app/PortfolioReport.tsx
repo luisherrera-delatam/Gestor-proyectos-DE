@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import OpenByCountryChart from "./OpenByCountryChart";
+import { GanttButton, ProgressInline, StepBadge, type AuthProps } from "./ReportBits";
 import {
   previousMonth,
   reportToPlainText,
@@ -24,6 +25,8 @@ interface Props {
   defaultPortfolioUrl: string;
   /** Clave de localStorage para recordar el portafolio de esta sección. */
   storageKey: string;
+  /** Número de paso que se muestra junto al título. */
+  step: number;
 }
 
 type Format = "json" | "xlsx" | "docx";
@@ -55,16 +58,27 @@ function Stat({ value, label, tone }: { value: number; label: string; tone: stri
   );
 }
 
-function ProjectName({ p }: { p: ReportProject }) {
+interface ProjectNameProps {
+  p: ReportProject;
+  auth: AuthProps;
+  onDone?: (message: string) => void;
+  onError?: (message: string) => void;
+}
+
+/** Nombre del proyecto (enlace a Asana) con el ícono para descargar su Gantt. */
+function ProjectName({ p, auth, onDone, onError }: ProjectNameProps) {
   return (
-    <a
-      href={p.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="font-medium text-dxnavy dark:text-gray-100 hover:underline"
-    >
-      {p.name}
-    </a>
+    <span className="flex min-w-0 items-start gap-1.5">
+      <a
+        href={p.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-dxnavy dark:text-gray-100 hover:underline"
+      >
+        {p.name}
+      </a>
+      <GanttButton gid={p.gid} name={p.name} auth={auth} onDone={onDone} onError={onError} />
+    </span>
   );
 }
 
@@ -75,6 +89,7 @@ export default function PortfolioReport({
   title,
   defaultPortfolioUrl,
   storageKey,
+  step,
 }: Props) {
   const [portfolio, setPortfolio] = useState(defaultPortfolioUrl);
   const [month, setMonth] = useState("");
@@ -169,12 +184,14 @@ export default function PortfolioReport({
   }
 
   const s = report?.summary;
+  const nameProps = { auth: { connected, token }, onDone, onError: setError };
   const canRun = portfolio.trim().length > 0 && month.length > 0 && loading === null;
 
   return (
     <section className="mt-6 bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-4 fade-up fade-up-2">
       <div>
-        <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
+        <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
+          <StepBadge n={step} />
           {title}
         </p>
         <p className="text-sm text-dxgray dark:text-gray-400 mt-1">
@@ -295,7 +312,7 @@ export default function PortfolioReport({
                 {report.finished.map((p) => (
                   <li key={p.gid} className="py-2">
                     <div className="flex items-start justify-between gap-2">
-                      <ProjectName p={p} />
+                      <ProjectName p={p} {...nameProps} />
                       <span
                         title="Estado en Asana: proyecto marcado como completado"
                         className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800 dark:bg-green-950 dark:text-green-300"
@@ -312,6 +329,7 @@ export default function PortfolioReport({
                       <span>
                         Cierre {shortDate(p.completedOn)} · plan {shortDate(p.dueOn)}
                       </span>
+                      <ProgressInline pct={p.pct} />
                       {p.onTime !== null && (
                         <span
                           className={
@@ -339,7 +357,7 @@ export default function PortfolioReport({
                 {report.discarded.map((p) => (
                   <li key={p.gid} className="py-2">
                     <div className="flex items-start justify-between gap-2">
-                      <ProjectName p={p} />
+                      <ProjectName p={p} {...nameProps} />
                       <span
                         title="Estado en Asana: proyecto descartado"
                         className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
@@ -354,6 +372,7 @@ export default function PortfolioReport({
                       <span>{p.country}</span>
                       <span>{p.owner ?? "Sin responsable"}</span>
                       <span>Descartado el {shortDate(p.discardedOn)}</span>
+                      <ProgressInline pct={p.pct} />
                     </div>
                   </li>
                 ))}
@@ -372,7 +391,7 @@ export default function PortfolioReport({
                 {report.pending.map((p) => (
                   <li key={p.gid} className="py-2">
                     <div className="flex items-start justify-between gap-2">
-                      <ProjectName p={p} />
+                      <ProjectName p={p} {...nameProps} />
                       <div className="flex shrink-0 items-center gap-1">
                         {p.overdue && (
                           <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white">
@@ -386,6 +405,7 @@ export default function PortfolioReport({
                       <span>{p.country}</span>
                       <span>{p.owner ?? "Sin responsable"}</span>
                       <span>Entrega {p.dueOn ? shortDate(p.dueOn) : "sin fecha"}</span>
+                      <ProgressInline pct={p.pct} />
                     </div>
                   </li>
                 ))}
