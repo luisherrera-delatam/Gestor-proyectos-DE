@@ -174,7 +174,12 @@ export default function ProjectPicker({
 
   const header = (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-sm font-semibold text-dxnavy dark:text-gray-100">{title}</h3>
+      <h3 className="text-sm font-semibold text-dxnavy dark:text-gray-100">
+        {title}
+        <span className="ml-2 rounded-full bg-dxnavy/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-dxnavy dark:bg-dxblue/15 dark:text-dxblue">
+          Total {projects.length}
+        </span>
+      </h3>
       {/* Pestañas Vigentes / Finalizados */}
       <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-[#23272f] p-0.5" role="tablist">
         {tabs.map((t) => (

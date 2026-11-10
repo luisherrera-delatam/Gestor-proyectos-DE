@@ -6,6 +6,25 @@ html, body { height: 100%; }
 body { background: #f7f9fc; color: #1a2233; }
 .dark body { background: #1b1f26; color: #e5e9f0; }
 
+/* Modo oscuro: los controles nativos (calendario del selector de mes,
+   barras de desplazamiento) usan su versión oscura, con íconos claros. */
+html.dark { color-scheme: dark; }
+html:not(.dark) { color-scheme: light; }
+
+/* Ícono del calendario en blanco en modo oscuro (Chrome/Edge/Safari):
+   brightness(0) lo vuelve negro sea cual sea su color e invert(1) lo deja
+   blanco puro, sin depender de cómo lo dibuje el navegador. */
+.dark input[type="month"]::-webkit-calendar-picker-indicator,
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  opacity: 0.85;
+  cursor: pointer;
+}
+.dark input[type="month"]::-webkit-calendar-picker-indicator:hover,
+.dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* Animación de entrada al cargar la página */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(14px); }

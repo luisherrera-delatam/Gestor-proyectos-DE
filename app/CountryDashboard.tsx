@@ -22,7 +22,7 @@ const DOT_FINALIZADO = "bg-[#0E6BB5] dark:bg-[#3987e5]";
 /** Semáforo compacto: 🟢 en tiempo · 🟡 en riesgo · 🔴 atrasados · 🔵 finalizados */
 function Semaphore({ k }: { k: HealthCounts }) {
   return (
-    <div className="flex items-center gap-3 text-[11px] font-medium tabular-nums">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium tabular-nums">
       <span
         title={TIP_EN_TIEMPO}
         className="flex items-center gap-1 text-green-700 dark:text-green-400"
@@ -76,6 +76,50 @@ function Legend() {
   );
 }
 
+/** Barra que reparte el total entre en tiempo, en riesgo, atrasados y finalizados. */
+function StatusBar({ k, className = "h-2" }: { k: HealthCounts; className?: string }) {
+  const total = k.count + k.finalizados;
+  if (total === 0) return null;
+  const parts = [
+    { n: k.enTiempo, c: "bg-green-500", t: "En tiempo" },
+    { n: k.riesgo, c: "bg-amber-500", t: "En riesgo" },
+    { n: k.atrasados, c: "bg-red-500", t: "Atrasados" },
+    { n: k.finalizados, c: DOT_FINALIZADO, t: "Finalizados" },
+  ].filter((p) => p.n > 0);
+  return (
+    <div className={`flex w-full gap-[2px] overflow-hidden rounded-full ${className}`}>
+      {parts.map((p) => (
+        <span
+          key={p.t}
+          title={`${p.t}: ${p.n} de ${total}`}
+          className={`${p.c} h-full first:rounded-l-full last:rounded-r-full`}
+          style={{ width: `${(p.n / total) * 100}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  hint,
+  tone = "text-dxnavy dark:text-gray-100",
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-lg bg-white dark:bg-[#23272f] px-3 py-2.5 border border-gray-200/70 dark:border-gray-700">
+      <p className="text-[11px] uppercase tracking-wider text-dxgray dark:text-gray-400">{label}</p>
+      <p className={`text-2xl font-bold leading-tight tabular-nums ${tone}`}>{value}</p>
+      {hint && <p className="text-[11px] text-dxgray dark:text-gray-400 truncate">{hint}</p>}
+    </div>
+  );
+}
+
 export default function CountryDashboard({ workspaces }: Props) {
   const projects = useMemo(() => workspaces.flatMap((w) => w.projects), [workspaces]);
   const kpis = useMemo(() => buildCountryKpis(projects), [projects]);
@@ -83,57 +127,78 @@ export default function CountryDashboard({ workspaces }: Props) {
 
   if (kpis.length === 0) return null;
 
+  const total = global.count + global.finalizados;
+  // Totales por portafolio (columna), p. ej. "Desarrollo 31 · Implementaciones 118".
+  const byPortfolio = workspaces
+    .map((w) => `${w.name.split(" · ")[0]} ${w.projects.length}`)
+    .join(" · ");
+
   return (
-    <div className="mb-4">
-      {/* Resumen global */}
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-dxnavy/5 dark:bg-dxblue/10 px-4 py-3 mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-widest text-dxgray dark:text-gray-400">
-              Resumen global
-            </p>
-            <p className="text-sm font-semibold text-dxnavy dark:text-gray-100">
-              {global.count} vigente{global.count === 1 ? "" : "s"} ·{" "}
-              {global.avgPct ?? "—"}% avance · {global.finalizados} finalizado
-              {global.finalizados === 1 ? "" : "s"}
-            </p>
-          </div>
+    <div className="mb-4 space-y-3">
+      {/* Totales: todos los proyectos de los dos portafolios */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-dxnavy/5 dark:bg-dxblue/10 p-3 sm:p-4">
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          <Tile label="Total de proyectos" value={total} hint={byPortfolio} />
+          <Tile
+            label="Vigentes"
+            value={global.count}
+            hint={`${total ? Math.round((global.count / total) * 100) : 0}% del total`}
+            tone="text-green-700 dark:text-green-400"
+          />
+          <Tile
+            label="Finalizados"
+            value={global.finalizados}
+            hint={`${total ? Math.round((global.finalizados / total) * 100) : 0}% del total`}
+            tone="text-[#0B5A99] dark:text-[#6ea8ec]"
+          />
+          <Tile
+            label="Avance promedio"
+            value={global.avgPct == null ? "—" : `${global.avgPct}%`}
+            hint="de los proyectos vigentes"
+          />
         </div>
-        <Semaphore k={global} />
+
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <StatusBar k={global} className="h-2.5 sm:flex-1" />
+          <Semaphore k={global} />
+        </div>
       </div>
 
       {/* Leyenda del semáforo */}
       <Legend />
 
       {/* Tarjetas por país */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
         {kpis.map((k) => (
           <div
             key={k.country}
             className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#1c2027] p-3"
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-sm font-semibold text-dxnavy dark:text-gray-100 truncate pr-1">
+            <div className="mb-0.5 flex items-baseline justify-between gap-2">
+              <p className="truncate text-sm font-semibold text-dxnavy dark:text-gray-100">
                 {k.country}
               </p>
-              <span className="shrink-0 text-[11px] text-dxgray dark:text-gray-400">
-                {k.count} vig.
+              <span className="shrink-0 text-sm font-bold tabular-nums text-dxnavy dark:text-gray-100">
+                {k.count + k.finalizados}
+                <span className="ml-1 text-[11px] font-normal text-dxgray dark:text-gray-400">total</span>
               </span>
             </div>
+            <p className="mb-2 text-[11px] text-dxgray dark:text-gray-400">
+              {k.count} vigente{k.count === 1 ? "" : "s"} · {k.finalizados} finalizado
+              {k.finalizados === 1 ? "" : "s"}
+            </p>
 
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-dxnavy dark:bg-dxblue"
-                  style={{ width: `${k.avgPct ?? 0}%` }}
-                />
-              </div>
-              <span className="text-[11px] font-medium text-dxnavy dark:text-dxblue tabular-nums">
-                {k.avgPct ?? "—"}%
+            <StatusBar k={k} className="h-1.5 mb-2" />
+
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+              <Semaphore k={k} />
+              <span
+                className="whitespace-nowrap text-[11px] tabular-nums text-dxgray dark:text-gray-400"
+                title="Avance promedio de los proyectos vigentes"
+              >
+                {k.avgPct == null ? "—" : `${k.avgPct}%`} avance
               </span>
             </div>
-
-            <Semaphore k={k} />
           </div>
         ))}
       </div>
