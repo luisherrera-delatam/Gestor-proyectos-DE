@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllProjects } from "@/lib/asana";
+import { fetchPortfolioProjectLists } from "@/lib/portfolio-projects";
 import { AuthError, applyRefreshedCookie, resolveAuth } from "@/lib/asana-auth";
 
 export const runtime = "nodejs";
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const workspaces = await fetchAllProjects(auth.token);
+    // Solo los portafolios DEL DES 2026 y DEL IMP 2026 (un grupo por portafolio).
+    const workspaces = await fetchPortfolioProjectLists(auth.token);
     const res = NextResponse.json({ workspaces });
     return applyRefreshedCookie(res, auth);
   } catch (err) {

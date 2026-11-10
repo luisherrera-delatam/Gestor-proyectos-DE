@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { AsanaProjectListItem, WorkspaceProjects } from "@/lib/asana";
-import { COUNTRY_ORDER, detectCountry } from "@/lib/countries";
+import type { AsanaProjectListItem } from "@/lib/asana";
+import { detectCountry, orderCountries } from "@/lib/countries";
 
 interface Props {
-  workspaces: WorkspaceProjects[];
+  /** Título de la columna, p. ej. "Desarrollo · DEL DES 2026". */
+  title: string;
+  projects: AsanaProjectListItem[];
   value: string;
   onChange: (gid: string) => void;
   disabled?: boolean;
@@ -93,8 +95,11 @@ interface CountryGroup {
   projects: AsanaProjectListItem[];
 }
 
+const countryOf = (p: AsanaProjectListItem) => p.country || detectCountry(p.name);
+
 export default function ProjectPicker({
-  workspaces,
+  title,
+  projects,
   value,
   onChange,
   disabled,
@@ -104,36 +109,27 @@ export default function ProjectPicker({
   const [query, setQuery] = useState("");
   const [activeCountry, setActiveCountry] = useState<string | null>(null);
 
-  const allProjects = useMemo(
-    () => workspaces.flatMap((w) => w.projects),
-    [workspaces]
-  );
-
-  // Grupos por país (para las pestañas/chips), en el orden fijo.
+  // Grupos por país (para las pestañas/chips): primero el orden fijo y luego
+  // cualquier otro país, para que ningún proyecto quede fuera de la vista.
   const groups = useMemo<CountryGroup[]>(() => {
     const byCountry = new Map<string, AsanaProjectListItem[]>();
-    for (const p of allProjects) {
-      const c = detectCountry(p.name);
+    for (const p of projects) {
+      const c = countryOf(p);
       if (!byCountry.has(c)) byCountry.set(c, []);
       byCountry.get(c)!.push(p);
     }
-    const ordered: CountryGroup[] = [];
-    for (const country of COUNTRY_ORDER) {
-      const list = byCountry.get(country);
-      if (list && list.length) {
-        list.sort((a, b) => a.name.localeCompare(b.name));
-        ordered.push({ country, projects: list });
-      }
-    }
-    return ordered;
-  }, [allProjects]);
+    return orderCountries(byCountry.keys()).map((country) => ({
+      country,
+      projects: [...byCountry.get(country)!].sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+  }, [projects]);
 
   // País efectivo: el elegido por el usuario, o el del proyecto seleccionado,
   // o el primero disponible.
   const selectedCountry = useMemo(() => {
-    const sel = allProjects.find((p) => p.gid === value);
-    return sel ? detectCountry(sel.name) : null;
-  }, [allProjects, value]);
+    const sel = projects.find((p) => p.gid === value);
+    return sel ? countryOf(sel) : null;
+  }, [projects, value]);
 
   const effectiveCountry =
     activeCountry && groups.some((g) => g.country === activeCountry)
@@ -155,16 +151,27 @@ export default function ProjectPicker({
     );
   }, [activeGroup, query]);
 
+  const header = (
+    <div className="mb-2 flex items-baseline justify-between gap-2">
+      <h3 className="text-sm font-semibold text-dxnavy dark:text-gray-100">{title}</h3>
+      <span className="text-[11px] text-dxgray dark:text-gray-400">
+        {projects.length} {projects.length === 1 ? "proyecto vigente" : "proyectos vigentes"}
+      </span>
+    </div>
+  );
+
   if (groups.length === 0) {
     return (
-      <p className="text-sm text-dxgray dark:text-gray-400">
-        No hay proyectos activos para mostrar.
-      </p>
+      <div className="min-w-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-[#1c2027]/60 p-3">
+        {header}
+        <p className="text-sm text-dxgray dark:text-gray-400">No hay proyectos vigentes.</p>
+      </div>
     );
   }
 
   return (
-    <div>
+    <div className="min-w-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-[#1c2027]/60 p-3">
+      {header}
       {/* Chips de país */}
       <div className="flex flex-wrap gap-2 mb-3">
         {groups.map((g) => {
@@ -178,7 +185,7 @@ export default function ProjectPicker({
                 setActiveCountry(g.country);
                 setQuery("");
               }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition disabled:opacity-60 disabled:cursor-not-allowed ${
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition disabled:opacity-60 disabled:cursor-not-allowed ${
                 active
                   ? "bg-dxnavy dark:bg-dxblue text-white dark:text-gray-900"
                   : "border border-gray-300 dark:border-gray-600 text-dxnavy dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2e343d]"

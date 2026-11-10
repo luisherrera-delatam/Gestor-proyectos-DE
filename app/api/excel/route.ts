@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllProjects } from "@/lib/asana";
+import { fetchPortfolioProjectLists } from "@/lib/portfolio-projects";
 import { AuthError, applyRefreshedCookie, resolveAuth } from "@/lib/asana-auth";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import { detectCountry } from "@/lib/countries";
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  let body: { token?: string; country?: string };
+  let body: { token?: string; country?: string; group?: string };
   try {
     body = await req.json();
   } catch {
@@ -30,10 +30,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const workspaces = await fetchAllProjects(auth.token);
-    const all = workspaces.flatMap((w) => w.projects);
+    const workspaces = await fetchPortfolioProjectLists(auth.token);
+    // Si se indica el grupo (columna Desarrollo / Implementaciones), solo ese.
+    const groups = body.group ? workspaces.filter((w) => w.gid === body.group) : workspaces;
+    const all = groups.flatMap((w) => w.projects);
     const rows: ExcelProjectRow[] = all
-      .filter((p) => detectCountry(p.name) === country)
+      .filter((p) => (p.country || detectCountry(p.name)) === country)
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((p) => ({
         name: p.name,
@@ -42,8 +44,10 @@ export async function POST(req: NextRequest) {
         pct: p.pct ?? null,
       }));
 
-    const buffer = await buildCountryExcel(country, rows);
-    const filename = `Proyectos_${sanitizeFilename(country)}.xlsx`;
+    const groupLabel = body.group && groups.length === 1 ? groups[0].name.split(" · ")[0] : null;
+    const title = groupLabel ? `${country} · ${groupLabel}` : country;
+    const buffer = await buildCountryExcel(title, rows);
+    const filename = `Proyectos_${sanitizeFilename(groupLabel ? `${country}_${groupLabel}` : country)}.xlsx`;
     const out = new Uint8Array(buffer);
 
     const res = new NextResponse(out, {

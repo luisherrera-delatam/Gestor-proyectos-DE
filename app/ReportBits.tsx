@@ -2,6 +2,72 @@
 
 import { useState } from "react";
 
+/** Encabezado de las secciones 4–6: número de paso, título y descripción. */
+export function SectionHeader({
+  step,
+  title,
+  children,
+  icon,
+}: {
+  step: number;
+  title: string;
+  children?: React.ReactNode;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-dxnavy dark:bg-dxblue text-white dark:text-gray-900 text-sm font-bold">
+        {step}
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-dxnavy dark:text-gray-100">
+          {icon}
+          {title}
+        </h2>
+        {children && <p className="mt-0.5 text-sm text-dxgray dark:text-gray-400">{children}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** Íconos de los botones de las secciones. */
+export function Icon({ name, className = "h-4 w-4" }: { name: "chart" | "table" | "doc" | "folder" | "x"; className?: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    chart: (
+      <>
+        <path d="M3 3v18h18" />
+        <rect x="7" y="11" width="3" height="6" rx="0.5" />
+        <rect x="12" y="7" width="3" height="10" rx="0.5" />
+        <rect x="17" y="13" width="3" height="4" rx="0.5" />
+      </>
+    ),
+    table: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M3 10h18M9 4v16" />
+      </>
+    ),
+    doc: (
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6M9 13h6M9 17h6" />
+      </>
+    ),
+    folder: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+    x: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="m9 9 6 6M15 9l-6 6" />
+      </>
+    ),
+  };
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  );
+}
+
 /** Número de paso, igual al de los pasos 1–3 del formulario. */
 export function StepBadge({ n }: { n: number }) {
   return (

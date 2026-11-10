@@ -9,7 +9,7 @@
  */
 
 import type { AsanaProjectListItem } from "./asana";
-import { COUNTRY_ORDER, detectCountry } from "./countries";
+import { detectCountry, orderCountries } from "./countries";
 
 /** Días de anticipación para considerar un proyecto "en riesgo". */
 export const RISK_DAYS = 14;
@@ -96,13 +96,13 @@ export function buildCountryKpis(
 ): CountryKpi[] {
   const byCountry = new Map<string, AsanaProjectListItem[]>();
   for (const p of projects) {
-    const c = detectCountry(p.name);
+    const c = p.country || detectCountry(p.name);
     if (!byCountry.has(c)) byCountry.set(c, []);
     byCountry.get(c)!.push(p);
   }
 
   const out: CountryKpi[] = [];
-  for (const country of COUNTRY_ORDER) {
+  for (const country of orderCountries(byCountry.keys())) {
     const list = byCountry.get(country);
     if (!list || list.length === 0) continue;
     out.push({ country, ...summarize(list, now) });

@@ -440,11 +440,11 @@ export default function Home() {
     }
   }
 
-  async function downloadExcel(country: string) {
+  async function downloadExcel(country: string, group: string) {
     setError(null);
-    setExcelCountry(country);
+    setExcelCountry(`${group}|${country}`);
     try {
-      const payload: Record<string, string> = { country };
+      const payload: Record<string, string> = { country, group };
       if (!connected && token.trim()) payload.token = token.trim();
       const res = await fetch("/api/excel", {
         method: "POST",
@@ -533,8 +533,8 @@ export default function Home() {
     loadingAction !== null || previewLoading || projectsLoading || excelCountry !== null;
 
   return (
-    <main className="min-h-screen flex items-start justify-center py-12 px-4">
-      <div className="w-full max-w-2xl">
+    <main className="min-h-screen py-8 px-4 sm:px-6 lg:px-10">
+      <div className="mx-auto w-full max-w-[1600px]">
         <header className="mb-8 fade-up">
           <div className="flex items-center gap-3 mb-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -571,7 +571,7 @@ export default function Home() {
               {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
           </div>
-          <p className="text-sm text-dxgray dark:text-gray-400 mt-1 sm:ml-[4.75rem]">
+          <p className="text-sm text-dxgray dark:text-gray-400 mt-1 sm:ml-[4.75rem] max-w-4xl">
             Conéctate con Asana, elige un proyecto y genera el Acta de Inicio, el
             Acta de Cierre (Word) o el Diagrama de Gantt (PDF) con el formato
             corporativo. Debajo están los informes de los portafolios de desarrollo
@@ -584,7 +584,7 @@ export default function Home() {
           className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-5 fade-up fade-up-1"
         >
           {/* ===== Conexión con Asana ===== */}
-          <div>
+          <div className="max-w-3xl">
             <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400 mb-2">
               <StepNumber n={1} />
               Conexión con Asana
@@ -700,14 +700,23 @@ export default function Home() {
             ) : workspaces ? (
               <>
                 <CountryDashboard workspaces={workspaces} />
-                <ProjectPicker
-                  workspaces={workspaces}
-                  value={selectedProjectGid}
-                  onChange={onProjectSelect}
-                  disabled={busy}
-                  onExportCountry={downloadExcel}
-                  exportingCountry={excelCountry}
-                />
+                {/* Una columna por portafolio: Desarrollo y Implementaciones. */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+                  {workspaces.map((w) => (
+                    <ProjectPicker
+                      key={w.gid}
+                      title={w.name}
+                      projects={w.projects}
+                      value={selectedProjectGid}
+                      onChange={onProjectSelect}
+                      disabled={busy}
+                      onExportCountry={(country) => downloadExcel(country, w.gid)}
+                      exportingCountry={
+                        excelCountry?.startsWith(`${w.gid}|`) ? excelCountry.slice(w.gid.length + 1) : null
+                      }
+                    />
+                  ))}
+                </div>
               </>
             ) : null}
 
@@ -733,7 +742,13 @@ export default function Home() {
             )}
           </div>
 
+          <div className="grid grid-cols-1 gap-6 border-t border-gray-200 dark:border-gray-700 pt-4 lg:grid-cols-2 lg:items-start [&>*]:min-w-0">
           {/* ===== Vista previa (se carga sola al elegir proyecto) ===== */}
+          {!projectChosen && (
+            <div className="hidden lg:flex min-h-[10rem] items-center justify-center rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 text-center text-sm text-dxgray dark:text-gray-400">
+              Elige un proyecto de Desarrollo o Implementaciones para ver su vista previa.
+            </div>
+          )}
           {projectChosen && (
             <div>
               {previewLoading && !preview && (
@@ -892,8 +907,9 @@ export default function Home() {
             </div>
           )}
 
+          <div className="space-y-5">
           {/* ===== Datos de las actas (colapsable) ===== */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <div>
             <button
               type="button"
               onClick={() => setShowExtra((v) => !v)}
@@ -1016,10 +1032,13 @@ export default function Home() {
               </p>
             )}
           </div>
+          </div>
+          </div>
         </form>
 
         {hasAuth && (
           <>
+            <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-start [&>*]:min-w-0">
             <PortfolioReport
               connected={connected}
               token={token}
@@ -1038,6 +1057,7 @@ export default function Home() {
               storageKey="asanaweb.report_portfolio_imp.v1"
               step={5}
             />
+            </div>
             <DiscardedProjects
               connected={connected}
               token={token}

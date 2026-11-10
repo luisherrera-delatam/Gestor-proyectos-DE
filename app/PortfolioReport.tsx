@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import OpenByCountryChart from "./OpenByCountryChart";
-import { GanttButton, ProgressInline, StepBadge, type AuthProps } from "./ReportBits";
+import { GanttButton, Icon, ProgressInline, SectionHeader, type AuthProps } from "./ReportBits";
 import {
   previousMonth,
   reportToPlainText,
@@ -188,17 +188,11 @@ export default function PortfolioReport({
   const canRun = portfolio.trim().length > 0 && month.length > 0 && loading === null;
 
   return (
-    <section className="mt-6 bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-4 fade-up fade-up-2">
-      <div>
-        <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
-          <StepBadge n={step} />
-          {title}
-        </p>
-        <p className="text-sm text-dxgray dark:text-gray-400 mt-1">
-          Proyectos finalizados en el mes elegido y proyectos que siguen pendientes, de todos
-          los subportafolios.
-        </p>
-      </div>
+    <section className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4 fade-up fade-up-2">
+      <SectionHeader step={step} title={title} icon={<Icon name="folder" className="h-4 w-4 text-dxgray dark:text-gray-400" />}>
+        Proyectos finalizados en el mes elegido y proyectos que siguen pendientes, de todos los
+        subportafolios.
+      </SectionHeader>
 
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
         <div>
@@ -237,16 +231,18 @@ export default function PortfolioReport({
           type="button"
           onClick={() => run("json")}
           disabled={!canRun}
-          className="bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
+          <Icon name="chart" />
           {loading === "json" ? "Generando informe…" : "Generar informe"}
         </button>
         <button
           type="button"
           onClick={() => run("xlsx")}
           disabled={!canRun}
-          className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
+          <Icon name="table" />
           {loading === "xlsx" ? "Generando Excel…" : "Descargar Excel"}
         </button>
         <button
@@ -254,8 +250,9 @@ export default function PortfolioReport({
           onClick={() => run("docx")}
           disabled={!canRun}
           title="Informe ejecutivo con la plantilla corporativa de Data Express"
-          className="bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
+          <Icon name="doc" />
           {loading === "docx" ? "Generando Word…" : "Informe en Word"}
         </button>
       </div>

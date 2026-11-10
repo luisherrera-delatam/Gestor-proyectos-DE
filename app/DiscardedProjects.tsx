@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { shortDate, type ReportProject } from "@/lib/portfolio-report";
-import { GanttButton, ProgressInline, StepBadge } from "./ReportBits";
+import { GanttButton, Icon, ProgressInline, SectionHeader } from "./ReportBits";
 
 export interface PortfolioSource {
   /** "Desarrollo", "Implementaciones"… */
@@ -79,27 +79,27 @@ export default function DiscardedProjects({ connected, token, step, sources, onD
   const filters = ["Todos", ...sources.map((s) => s.label)];
 
   return (
-    <section className="mt-6 bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-4 fade-up fade-up-2">
-      <div>
-        <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
-          <StepBadge n={step} />
-          Proyectos descartados
-        </p>
-        <p className="text-sm text-dxgray dark:text-gray-400 mt-1">
+    <section className="mt-6 bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4 fade-up fade-up-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <SectionHeader
+          step={step}
+          title="Proyectos descartados"
+          icon={<Icon name="x" className="h-4 w-4 text-dxgray dark:text-gray-400" />}
+        >
           Proyectos con estatus &quot;Descartado&quot; en Asana, de los portafolios de{" "}
           {sources.map((s) => s.label.toLowerCase()).join(" e ")}. No cuentan como finalizados ni
           como pendientes.
-        </p>
+        </SectionHeader>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="inline-flex shrink-0 items-center justify-center gap-2 px-5 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <Icon name="x" />
+          {loading ? "Consultando Asana…" : rows ? "Actualizar descartados" : "Consultar descartados"}
+        </button>
       </div>
-
-      <button
-        type="button"
-        onClick={load}
-        disabled={loading}
-        className="w-full sm:w-auto sm:px-6 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {loading ? "Consultando Asana…" : rows ? "Actualizar descartados" : "Consultar descartados"}
-      </button>
 
       {errors.map((e) => (
         <div
@@ -141,9 +141,9 @@ export default function DiscardedProjects({ connected, token, step, sources, onD
           {visible.length === 0 ? (
             <p className="text-xs text-dxgray dark:text-gray-400">No hay proyectos descartados.</p>
           ) : (
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700 text-xs">
+            <ul className="grid gap-x-8 text-xs lg:grid-cols-2">
               {visible.map((p) => (
-                <li key={`${p.portfolio}-${p.gid}`} className="py-2">
+                <li key={`${p.portfolio}-${p.gid}`} className="border-b border-gray-200 py-2 dark:border-gray-700">
                   <div className="flex items-start justify-between gap-2">
                     <span className="flex min-w-0 items-start gap-1.5">
                       <a

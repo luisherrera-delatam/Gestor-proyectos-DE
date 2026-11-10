@@ -24,8 +24,24 @@ export const COUNTRY_ORDER: string[] = [
   "México",
   "Ecuador",
   "Costa Rica",
+  "Honduras",
+  "DELATAM",
   OTHER_COUNTRY,
 ];
+
+/**
+ * Ordena una lista de países: primero los de COUNTRY_ORDER (en ese orden),
+ * luego cualquier otro alfabéticamente y al final "Otros". Así ningún país
+ * desconocido se pierde de la vista.
+ */
+export function orderCountries(countries: Iterable<string>): string[] {
+  const set = new Set(countries);
+  const known = COUNTRY_ORDER.filter((c) => c !== OTHER_COUNTRY && set.has(c));
+  const extra = Array.from(set)
+    .filter((c) => !COUNTRY_ORDER.includes(c))
+    .sort((a, b) => a.localeCompare(b, "es"));
+  return [...known, ...extra, ...(set.has(OTHER_COUNTRY) ? [OTHER_COUNTRY] : [])];
+}
 
 /** Devuelve el país del proyecto según el prefijo de su nombre. */
 export function detectCountry(projectName: string): string {
