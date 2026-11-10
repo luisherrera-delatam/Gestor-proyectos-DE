@@ -100,8 +100,6 @@ function StatusBar({ k, className = "h-2" }: { k: HealthCounts; className?: stri
   );
 }
 
-const fmt = (n: number) => n.toLocaleString("es-MX");
-
 function Tile({
   label,
   value,
@@ -144,7 +142,7 @@ export default function CountryDashboard({ workspaces }: Props) {
     <div className="mb-4 space-y-3">
       {/* Totales: todos los proyectos de los dos portafolios */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-dxnavy/5 dark:bg-dxblue/10 p-3 sm:p-4">
-        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
           <Tile label="Total de proyectos" value={total} hint={byPortfolio} />
           <Tile
             label="Vigentes"
@@ -157,16 +155,6 @@ export default function CountryDashboard({ workspaces }: Props) {
             value={global.finalizados}
             hint={`${total ? Math.round((global.finalizados / total) * 100) : 0}% del total`}
             tone="text-[#0B5A99] dark:text-[#6ea8ec]"
-          />
-          <Tile
-            label="Avance de vigentes"
-            value={global.avgPct == null ? "—" : `${global.avgPct}%`}
-            hint={
-              global.tasksTotal > 0
-                ? `${fmt(global.tasksDone)}/${fmt(global.tasksTotal)} tareas completadas`
-                : `de ${global.count} proyectos vigentes`
-            }
-            title={`Tareas completadas sobre el total de tareas de los ${global.count} proyectos vigentes`}
           />
         </div>
 
@@ -202,18 +190,7 @@ export default function CountryDashboard({ workspaces }: Props) {
 
             <StatusBar k={k} className="h-1.5 mb-2" />
 
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-              <Semaphore k={k} />
-              <span
-                className="whitespace-nowrap text-[11px] tabular-nums text-dxgray dark:text-gray-400"
-                title="Avance de los proyectos vigentes: tareas completadas / tareas totales"
-              >
-                <strong className="text-dxnavy dark:text-gray-100">
-                  {k.avgPct == null ? "—" : `${k.avgPct}%`}
-                </strong>
-                {k.tasksTotal > 0 && <> · {fmt(k.tasksDone)}/{fmt(k.tasksTotal)} tareas</>}
-              </span>
-            </div>
+            <Semaphore k={k} />
           </div>
         ))}
       </div>
