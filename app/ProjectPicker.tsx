@@ -97,6 +97,8 @@ interface CountryGroup {
 
 const countryOf = (p: AsanaProjectListItem) => p.country || detectCountry(p.name);
 
+type View = "vigentes" | "finalizados";
+
 export default function ProjectPicker({
   title,
   projects,
@@ -108,12 +110,21 @@ export default function ProjectPicker({
 }: Props) {
   const [query, setQuery] = useState("");
   const [activeCountry, setActiveCountry] = useState<string | null>(null);
+  const [chosenView, setChosenView] = useState<View | null>(null);
+
+  const activeList = useMemo(() => projects.filter((p) => !p.finished), [projects]);
+  const finishedList = useMemo(() => projects.filter((p) => p.finished), [projects]);
+
+  // Pestaña efectiva: la elegida, o la del proyecto seleccionado, o "vigentes".
+  const selectedIsFinished = projects.find((p) => p.gid === value)?.finished === true;
+  const view: View = chosenView ?? (selectedIsFinished ? "finalizados" : "vigentes");
+  const shown = view === "finalizados" ? finishedList : activeList;
 
   // Grupos por país (para las pestañas/chips): primero el orden fijo y luego
   // cualquier otro país, para que ningún proyecto quede fuera de la vista.
   const groups = useMemo<CountryGroup[]>(() => {
     const byCountry = new Map<string, AsanaProjectListItem[]>();
-    for (const p of projects) {
+    for (const p of shown) {
       const c = countryOf(p);
       if (!byCountry.has(c)) byCountry.set(c, []);
       byCountry.get(c)!.push(p);
@@ -122,14 +133,14 @@ export default function ProjectPicker({
       country,
       projects: [...byCountry.get(country)!].sort((a, b) => a.name.localeCompare(b.name)),
     }));
-  }, [projects]);
+  }, [shown]);
 
   // País efectivo: el elegido por el usuario, o el del proyecto seleccionado,
   // o el primero disponible.
   const selectedCountry = useMemo(() => {
-    const sel = projects.find((p) => p.gid === value);
+    const sel = shown.find((p) => p.gid === value);
     return sel ? countryOf(sel) : null;
-  }, [projects, value]);
+  }, [shown, value]);
 
   const effectiveCountry =
     activeCountry && groups.some((g) => g.country === activeCountry)
@@ -151,12 +162,44 @@ export default function ProjectPicker({
     );
   }, [activeGroup, query]);
 
+  const tabs: { id: View; label: string; count: number; dot: string }[] = [
+    { id: "vigentes", label: "Vigentes", count: activeList.length, dot: "bg-green-500" },
+    {
+      id: "finalizados",
+      label: "Finalizados",
+      count: finishedList.length,
+      dot: "bg-[#0E6BB5] dark:bg-[#3987e5]",
+    },
+  ];
+
   const header = (
-    <div className="mb-2 flex items-baseline justify-between gap-2">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-sm font-semibold text-dxnavy dark:text-gray-100">{title}</h3>
-      <span className="text-[11px] text-dxgray dark:text-gray-400">
-        {projects.length} {projects.length === 1 ? "proyecto vigente" : "proyectos vigentes"}
-      </span>
+      {/* Pestañas Vigentes / Finalizados */}
+      <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-[#23272f] p-0.5" role="tablist">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={view === t.id}
+            disabled={disabled}
+            onClick={() => {
+              setChosenView(t.id);
+              setActiveCountry(null);
+              setQuery("");
+            }}
+            className={`flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] font-medium transition disabled:opacity-60 ${
+              view === t.id
+                ? "bg-dxnavy text-white dark:bg-dxblue dark:text-gray-900"
+                : "text-dxgray hover:text-dxnavy dark:text-gray-400 dark:hover:text-dxblue"
+            }`}
+          >
+            <span className={`inline-block h-2 w-2 rounded-full ${t.dot}`} />
+            {t.label} ({t.count})
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -164,7 +207,9 @@ export default function ProjectPicker({
     return (
       <div className="min-w-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-[#1c2027]/60 p-3">
         {header}
-        <p className="text-sm text-dxgray dark:text-gray-400">No hay proyectos vigentes.</p>
+        <p className="text-sm text-dxgray dark:text-gray-400">
+          {view === "finalizados" ? "No hay proyectos finalizados." : "No hay proyectos vigentes."}
+        </p>
       </div>
     );
   }
@@ -213,7 +258,7 @@ export default function ProjectPicker({
               className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-[#23272f] dark:text-gray-100 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue"
             />
           </div>
-          {onExportCountry && effectiveCountry && (
+          {onExportCountry && effectiveCountry && view === "vigentes" && (
             <button
               type="button"
               disabled={disabled || exportingCountry === effectiveCountry}
@@ -255,8 +300,15 @@ export default function ProjectPicker({
                     className={`h-4 w-4 shrink-0 ${active ? "opacity-100" : "opacity-0"}`}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate ${active ? "font-medium" : ""}`}>
-                      {p.name}
+                    <span className="flex items-center gap-1.5">
+                      <span className={`block min-w-0 truncate ${active ? "font-medium" : ""}`}>
+                        {p.name}
+                      </span>
+                      {p.finished && (
+                        <span className="shrink-0 rounded-full bg-[#0E6BB5]/10 px-1.5 py-px text-[10px] font-semibold text-[#0B5A99] dark:bg-[#3987e5]/20 dark:text-[#8fbcf2]">
+                          Finalizado
+                        </span>
+                      )}
                     </span>
                     <span className="block truncate text-[11px] text-dxgray dark:text-gray-400">
                       {p.owner?.name || "Sin responsable"}

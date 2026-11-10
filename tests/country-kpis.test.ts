@@ -93,3 +93,27 @@ describe("buildGlobalKpi", () => {
     expect(g.avgPct).toBe(53); // round((50+30+80)/3)
   });
 });
+
+describe("finalizados en el semáforo", () => {
+  it("cuenta los finalizados aparte, sin afectar vigentes, promedio ni semáforo", () => {
+    const projects: AsanaProjectListItem[] = [
+      { ...proj("MX-01 A", 50, "2026-06-01"), finished: false }, // atrasado
+      { ...proj("MX-02 B", null, "2026-05-01"), finished: true }, // finalizado
+      { ...proj("MX-03 C", null, null), finished: true }, // finalizado
+      { ...proj("PE-01 D", null, "2026-01-01"), finished: true }, // finalizado (solo finalizados en Perú)
+    ];
+    const kpis = buildCountryKpis(projects, NOW);
+    const mx = kpis.find((k) => k.country === "México")!;
+    expect(mx.count).toBe(1);
+    expect(mx.avgPct).toBe(50);
+    expect(mx.atrasados).toBe(1);
+    expect(mx.finalizados).toBe(2);
+    const pe = kpis.find((k) => k.country === "Perú")!;
+    expect(pe.count).toBe(0);
+    expect(pe.finalizados).toBe(1);
+    expect(pe.atrasados).toBe(0);
+    const g = buildGlobalKpi(projects, NOW);
+    expect(g.count).toBe(1);
+    expect(g.finalizados).toBe(3);
+  });
+});

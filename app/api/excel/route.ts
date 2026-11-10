@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
     const workspaces = await fetchPortfolioProjectLists(auth.token);
     // Si se indica el grupo (columna Desarrollo / Implementaciones), solo ese.
     const groups = body.group ? workspaces.filter((w) => w.gid === body.group) : workspaces;
-    const all = groups.flatMap((w) => w.projects);
+    // El Excel por país es de proyectos vigentes: sin los finalizados.
+    const all = groups.flatMap((w) => w.projects).filter((p) => !p.finished);
     const rows: ExcelProjectRow[] = all
       .filter((p) => (p.country || detectCountry(p.name)) === country)
       .sort((a, b) => a.name.localeCompare(b.name))

@@ -26,6 +26,17 @@ export const PROJECT_PORTFOLIOS: ProjectPortfolio[] = [
   { id: "imp", label: "Implementaciones", url: IMPLEMENTATIONS_PORTFOLIO_URL },
 ];
 
+/**
+ * ¿El proyecto está finalizado? Completado en Asana (o con estatus "complete"),
+ * excepto los descartados ("dropped"), que Asana también marca como completados.
+ * Los archivados se incluyen: archivar solo los oculta en Asana.
+ */
+export function isFinishedProject(p: PortfolioProject): boolean {
+  const status = p.current_status_update?.status_type ?? null;
+  if (status === "dropped") return false;
+  return p.completed === true || status === "complete";
+}
+
 /** ¿El proyecto sigue vigente? (no completado, no descartado, no archivado). */
 export function isListedProject(p: PortfolioProject): boolean {
   if (p.archived) return false;
@@ -35,12 +46,17 @@ export function isListedProject(p: PortfolioProject): boolean {
   });
 }
 
-/** Convierte los proyectos del portafolio en la lista del selector (sin %). */
+/**
+ * Convierte los proyectos del portafolio en la lista del selector (sin %):
+ * vigentes y finalizados (con `finished: true`). Los descartados no entran.
+ */
 export function toProjectList(projects: PortfolioProject[]): AsanaProjectListItem[] {
   const seen = new Set<string>();
   const out: AsanaProjectListItem[] = [];
   for (const p of projects) {
-    if (seen.has(p.gid) || !isListedProject(p)) continue;
+    if (seen.has(p.gid)) continue;
+    const finished = isFinishedProject(p);
+    if (!finished && !isListedProject(p)) continue;
     seen.add(p.gid);
     out.push({
       gid: p.gid,
@@ -51,6 +67,7 @@ export function toProjectList(projects: PortfolioProject[]): AsanaProjectListIte
       dueOn: p.due_on ?? null,
       pct: null,
       country: projectCountry(p.name, p.parentPortfolio),
+      finished,
     });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -73,7 +90,7 @@ async function withProgress(list: AsanaProjectListItem[], token: string): Promis
   await Promise.all(Array.from({ length: Math.min(10, list.length) }, worker));
 }
 
-/** Un grupo por portafolio (Desarrollo, Implementaciones) con sus proyectos vigentes. */
+/** Un grupo por portafolio (Desarrollo, Implementaciones) con sus proyectos vigentes y finalizados. */
 export async function fetchPortfolioProjectLists(token: string): Promise<WorkspaceProjects[]> {
   return Promise.all(
     PROJECT_PORTFOLIOS.map(async (pf) => {
@@ -81,7 +98,11 @@ export async function fetchPortfolioProjectLists(token: string): Promise<Workspa
       if (!gid) throw new Error(`URL de portafolio inválida: ${pf.url}`);
       const { name, projects } = await fetchPortfolioProjects(gid, token);
       const list = toProjectList(projects);
-      await withProgress(list, token);
+      // El % solo se consulta para los vigentes (los finalizados ya cerraron).
+      await withProgress(
+        list.filter((p) => !p.finished),
+        token
+      );
       return { gid: pf.id, name: `${pf.label} · ${name}`, projects: list };
     })
   );

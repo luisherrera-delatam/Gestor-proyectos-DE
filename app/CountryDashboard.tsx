@@ -15,8 +15,11 @@ function Dot({ color }: { color: string }) {
 const TIP_EN_TIEMPO = "En tiempo: dentro de plazo";
 const TIP_RIESGO = "En riesgo: vence en ≤14 días y avance < 70%";
 const TIP_ATRASADO = "Atrasado: fecha fin vencida y avance < 100%";
+const TIP_FINALIZADO = "Finalizados: proyectos completados en Asana (no incluye descartados)";
+// Azul de la paleta validada: distinto del verde de "En tiempo".
+const DOT_FINALIZADO = "bg-[#0E6BB5] dark:bg-[#3987e5]";
 
-/** Semáforo compacto: 🟢 en tiempo · 🟡 en riesgo · 🔴 atrasados */
+/** Semáforo compacto: 🟢 en tiempo · 🟡 en riesgo · 🔴 atrasados · 🔵 finalizados */
 function Semaphore({ k }: { k: HealthCounts }) {
   return (
     <div className="flex items-center gap-3 text-[11px] font-medium tabular-nums">
@@ -41,6 +44,13 @@ function Semaphore({ k }: { k: HealthCounts }) {
         <Dot color="bg-red-500" />
         {k.atrasados}
       </span>
+      <span
+        title={TIP_FINALIZADO}
+        className="flex items-center gap-1 text-[#0B5A99] dark:text-[#6ea8ec]"
+      >
+        <Dot color={DOT_FINALIZADO} />
+        {k.finalizados}
+      </span>
     </div>
   );
 }
@@ -58,6 +68,9 @@ function Legend() {
       </span>
       <span title={TIP_ATRASADO} className="flex items-center gap-1">
         <Dot color="bg-red-500" /> Atrasado <span className="opacity-70">(vencido)</span>
+      </span>
+      <span title={TIP_FINALIZADO} className="flex items-center gap-1">
+        <Dot color={DOT_FINALIZADO} /> Finalizados
       </span>
     </div>
   );
@@ -80,8 +93,9 @@ export default function CountryDashboard({ workspaces }: Props) {
               Resumen global
             </p>
             <p className="text-sm font-semibold text-dxnavy dark:text-gray-100">
-              {global.count} proyecto{global.count === 1 ? "" : "s"} ·{" "}
-              {global.avgPct ?? "—"}% avance
+              {global.count} vigente{global.count === 1 ? "" : "s"} ·{" "}
+              {global.avgPct ?? "—"}% avance · {global.finalizados} finalizado
+              {global.finalizados === 1 ? "" : "s"}
             </p>
           </div>
         </div>
@@ -103,7 +117,7 @@ export default function CountryDashboard({ workspaces }: Props) {
                 {k.country}
               </p>
               <span className="shrink-0 text-[11px] text-dxgray dark:text-gray-400">
-                {k.count} proy.
+                {k.count} vig.
               </span>
             </div>
 

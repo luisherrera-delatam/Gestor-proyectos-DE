@@ -63,13 +63,17 @@ export interface HealthCounts {
   atrasados: number;
   riesgo: number;
   enTiempo: number;
+  /** Proyectos finalizados (no cuentan en `count`, el promedio ni el semáforo). */
+  finalizados: number;
 }
 
 export interface CountryKpi extends HealthCounts {
   country: string;
 }
 
-function summarize(projects: AsanaProjectListItem[], now: Date): HealthCounts {
+function summarize(all: AsanaProjectListItem[], now: Date): HealthCounts {
+  const projects = all.filter((p) => !p.finished);
+  const finalizados = all.length - projects.length;
   const pcts = projects
     .map((p) => p.pct)
     .filter((n): n is number => typeof n === "number");
@@ -87,7 +91,7 @@ function summarize(projects: AsanaProjectListItem[], now: Date): HealthCounts {
     else enTiempo++;
   }
 
-  return { count: projects.length, avgPct, atrasados, riesgo, enTiempo };
+  return { count: projects.length, avgPct, atrasados, riesgo, enTiempo, finalizados };
 }
 
 export function buildCountryKpis(

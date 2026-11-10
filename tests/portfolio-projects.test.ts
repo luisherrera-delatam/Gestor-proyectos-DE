@@ -42,6 +42,23 @@ describe("proyectos del paso 2", () => {
     expect(isListedProject(proj({ gid: "6", name: "F", current_status_update: { status_type: "off_track" } }))).toBe(true);
   });
 
+  it("incluye los finalizados (también archivados) y deja fuera descartados y archivados vigentes", () => {
+    const list = toProjectList([
+      proj({ gid: "a", name: "A vigente" }),
+      proj({ gid: "b", name: "B finalizado", completed: true, current_status_update: { status_type: "complete" } }),
+      proj({ gid: "c", name: "C finalizado archivado", completed: true, archived: true }),
+      proj({ gid: "d", name: "D estatus completo", current_status_update: { status_type: "complete" } }),
+      proj({ gid: "e", name: "E descartado", completed: true, current_status_update: { status_type: "dropped" } }),
+      proj({ gid: "f", name: "F vigente archivado", archived: true }),
+    ]);
+    expect(list.map((p) => [p.gid, p.finished])).toEqual([
+      ["a", false],
+      ["b", true],
+      ["c", true],
+      ["d", true],
+    ]);
+  });
+
   it("quita duplicados y pone el país (también DELATAM y Honduras)", () => {
     const list = toProjectList([
       proj({ gid: "1", name: "DEL-26-DS-002: MEJORAS DX", parentPortfolio: "DEL 2026" }),
@@ -113,8 +130,14 @@ describe("fetchPortfolioProjectLists", () => {
     );
     const groups = await fetchPortfolioProjectLists("tok");
     expect(groups.map((g) => g.name)).toEqual(["Desarrollo · DEL DES 2026", "Implementaciones · DEL IMP 2026"]);
-    expect(groups[0].projects.map((p) => p.gid)).toEqual(["p1"]);
+    // Vigentes y finalizados; el descartado (p4) no entra.
+    expect(groups[0].projects.map((p) => [p.gid, p.finished])).toEqual([
+      ["p1", false],
+      ["p2", true],
+    ]);
     expect(groups[1].projects.map((p) => p.gid)).toEqual(["p3"]);
+    // El % solo se consulta para los vigentes.
+    expect(groups[0].projects[1].pct).toBeNull();
     expect(groups[1].projects[0].country).toBe("México");
     expect(groups[0].projects[0].pct).toBe(25);
   });

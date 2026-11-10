@@ -55,6 +55,8 @@ export interface AsanaProjectListItem {
   customFields?: ({ name?: string | null; display_value?: string | null } | null)[] | null;
   /** País (del código del proyecto o de su subportafolio). Si falta, se detecta del nombre. */
   country?: string | null;
+  /** Proyecto finalizado en Asana (completado, no descartado). */
+  finished?: boolean;
 }
 
 /** Texto que, en un campo de estado, indica que el proyecto está finalizado. */
