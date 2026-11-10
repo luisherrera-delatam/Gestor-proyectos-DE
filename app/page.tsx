@@ -537,18 +537,28 @@ export default function Home() {
       <div className="mx-auto w-full max-w-[1600px]">
         <header className="mb-8 fade-up">
           <div className="flex items-center gap-3 mb-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo_dx.png"
-              alt="Data Express"
-              className="h-16 w-16 shrink-0 object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-                const placeholder = e.currentTarget.nextElementSibling as HTMLElement | null;
-                if (placeholder) placeholder.style.display = "flex";
-              }}
-            />
+            {/* Modo claro: logo original (fondo blanco). Modo oscuro: versión con
+                fondo transparente y sin contornos (public/logo_dx_dark.png). */}
+            {(["/logo_dx.png", "/logo_dx_dark.png"] as const).map((src) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={src}
+                src={src}
+                alt="Data Express"
+                className={`h-16 w-16 shrink-0 object-contain ${
+                  src === "/logo_dx.png" ? "block dark:hidden" : "hidden dark:block"
+                }`}
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                  const header = e.currentTarget.closest("header");
+                  header?.querySelectorAll("img").forEach((img) => (img.style.display = "none"));
+                  const placeholder = header?.querySelector<HTMLElement>("[data-logo-fallback]");
+                  if (placeholder) placeholder.style.display = "flex";
+                }}
+              />
+            ))}
             <div
+              data-logo-fallback
               className="h-16 w-16 shrink-0 rounded bg-dxnavy items-center justify-center text-white font-bold text-base"
               style={{ display: "none" }}
             >
