@@ -79,6 +79,8 @@ async function withProgress(list: AsanaProjectListItem[], token: string): Promis
     while (next < list.length) {
       const p = list[next++];
       const counts = await fetchTaskCounts(token, p.gid);
+      p.tasksDone = counts ? counts.num_completed_tasks : null;
+      p.tasksTotal = counts ? counts.num_tasks : null;
       p.pct =
         counts && counts.num_tasks > 0
           ? Math.round((counts.num_completed_tasks / counts.num_tasks) * 100)

@@ -58,8 +58,15 @@ export function classifyHealth(
 
 export interface HealthCounts {
   count: number;
-  /** Avance promedio (0-100) de los proyectos con % conocido. null si ninguno. */
+  /**
+   * Avance (0-100) de los proyectos vigentes: tareas completadas / tareas
+   * totales (sumadas). Si no hay conteo de tareas, el promedio de sus %.
+   * null si no se conoce el avance de ninguno.
+   */
   avgPct: number | null;
+  /** Tareas completadas y totales sumadas de los proyectos vigentes con tareas. */
+  tasksDone: number;
+  tasksTotal: number;
   atrasados: number;
   riesgo: number;
   enTiempo: number;
@@ -74,12 +81,23 @@ export interface CountryKpi extends HealthCounts {
 function summarize(all: AsanaProjectListItem[], now: Date): HealthCounts {
   const projects = all.filter((p) => !p.finished);
   const finalizados = all.length - projects.length;
+  let tasksDone = 0;
+  let tasksTotal = 0;
+  for (const p of projects) {
+    if (typeof p.tasksTotal === "number" && p.tasksTotal > 0) {
+      tasksTotal += p.tasksTotal;
+      tasksDone += p.tasksDone ?? 0;
+    }
+  }
   const pcts = projects
     .map((p) => p.pct)
     .filter((n): n is number => typeof n === "number");
-  const avgPct = pcts.length
-    ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length)
-    : null;
+  const avgPct =
+    tasksTotal > 0
+      ? Math.round((tasksDone / tasksTotal) * 100)
+      : pcts.length
+        ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length)
+        : null;
 
   let atrasados = 0;
   let riesgo = 0;
@@ -91,7 +109,16 @@ function summarize(all: AsanaProjectListItem[], now: Date): HealthCounts {
     else enTiempo++;
   }
 
-  return { count: projects.length, avgPct, atrasados, riesgo, enTiempo, finalizados };
+  return {
+    count: projects.length,
+    avgPct,
+    tasksDone,
+    tasksTotal,
+    atrasados,
+    riesgo,
+    enTiempo,
+    finalizados,
+  };
 }
 
 export function buildCountryKpis(

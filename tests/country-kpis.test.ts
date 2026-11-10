@@ -117,3 +117,18 @@ describe("finalizados en el semáforo", () => {
     expect(g.finalizados).toBe(3);
   });
 });
+
+describe("avance por tareas", () => {
+  it("usa tareas completadas / tareas totales de los vigentes (con peso por tamaño)", () => {
+    const projects: AsanaProjectListItem[] = [
+      { ...proj("MX-01 A", 50, null), tasksDone: 5, tasksTotal: 10 },
+      { ...proj("MX-02 B", 100, null), tasksDone: 2, tasksTotal: 2 },
+      { ...proj("MX-03 C", null, null), tasksDone: 0, tasksTotal: 0 }, // sin tareas: no cuenta
+      { ...proj("MX-04 D", null, null), finished: true, tasksDone: 9, tasksTotal: 9 }, // finalizado: no cuenta
+    ];
+    const g = buildGlobalKpi(projects, NOW);
+    expect(g.tasksDone).toBe(7);
+    expect(g.tasksTotal).toBe(12);
+    expect(g.avgPct).toBe(58); // 7/12, no el promedio simple (75%)
+  });
+});

@@ -57,6 +57,9 @@ export interface AsanaProjectListItem {
   country?: string | null;
   /** Proyecto finalizado en Asana (completado, no descartado). */
   finished?: boolean;
+  /** Tareas completadas y totales del proyecto (task_counts de Asana). */
+  tasksDone?: number | null;
+  tasksTotal?: number | null;
 }
 
 /** Texto que, en un campo de estado, indica que el proyecto está finalizado. */

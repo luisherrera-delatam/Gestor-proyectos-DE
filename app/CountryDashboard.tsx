@@ -100,19 +100,26 @@ function StatusBar({ k, className = "h-2" }: { k: HealthCounts; className?: stri
   );
 }
 
+const fmt = (n: number) => n.toLocaleString("es-MX");
+
 function Tile({
   label,
   value,
   hint,
+  title,
   tone = "text-dxnavy dark:text-gray-100",
 }: {
   label: string;
   value: string | number;
   hint?: string;
+  title?: string;
   tone?: string;
 }) {
   return (
-    <div className="rounded-lg bg-white dark:bg-[#23272f] px-3 py-2.5 border border-gray-200/70 dark:border-gray-700">
+    <div
+      title={title}
+      className="rounded-lg bg-white dark:bg-[#23272f] px-3 py-2.5 border border-gray-200/70 dark:border-gray-700"
+    >
       <p className="text-[11px] uppercase tracking-wider text-dxgray dark:text-gray-400">{label}</p>
       <p className={`text-2xl font-bold leading-tight tabular-nums ${tone}`}>{value}</p>
       {hint && <p className="text-[11px] text-dxgray dark:text-gray-400 truncate">{hint}</p>}
@@ -152,9 +159,14 @@ export default function CountryDashboard({ workspaces }: Props) {
             tone="text-[#0B5A99] dark:text-[#6ea8ec]"
           />
           <Tile
-            label="Avance promedio"
+            label="Avance de vigentes"
             value={global.avgPct == null ? "—" : `${global.avgPct}%`}
-            hint="de los proyectos vigentes"
+            hint={
+              global.tasksTotal > 0
+                ? `${fmt(global.tasksDone)}/${fmt(global.tasksTotal)} tareas completadas`
+                : `de ${global.count} proyectos vigentes`
+            }
+            title={`Tareas completadas sobre el total de tareas de los ${global.count} proyectos vigentes`}
           />
         </div>
 
@@ -194,9 +206,12 @@ export default function CountryDashboard({ workspaces }: Props) {
               <Semaphore k={k} />
               <span
                 className="whitespace-nowrap text-[11px] tabular-nums text-dxgray dark:text-gray-400"
-                title="Avance promedio de los proyectos vigentes"
+                title="Avance de los proyectos vigentes: tareas completadas / tareas totales"
               >
-                {k.avgPct == null ? "—" : `${k.avgPct}%`} avance
+                <strong className="text-dxnavy dark:text-gray-100">
+                  {k.avgPct == null ? "—" : `${k.avgPct}%`}
+                </strong>
+                {k.tasksTotal > 0 && <> · {fmt(k.tasksDone)}/{fmt(k.tasksTotal)} tareas</>}
               </span>
             </div>
           </div>
