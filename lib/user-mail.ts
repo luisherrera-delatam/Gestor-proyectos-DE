@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { ROLE_LABELS, type Role } from "./roles";
+import { userAccessHtml } from "./user-mail-template";
 
 export interface MailDelivery {
   status: "accepted" | "not_configured" | "failed";
@@ -51,6 +52,7 @@ export async function sendUserAccessMail(user: {
       subject: kind === "invite"
         ? "Tu acceso al Gestor de proyectos Data Express"
         : "Nueva contraseña temporal · Gestor de proyectos Data Express",
+      html: userAccessHtml(user, password, kind, url.href),
       text: [
         `Hola ${user.name},`,
         "",

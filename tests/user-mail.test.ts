@@ -37,6 +37,9 @@ describe("correo de acceso", () => {
     expect(message.text).toContain("Temporal123");
     expect(message.text).toContain("deberás cambiar");
     expect(message.text).toContain("Solo vista");
+    expect(message.html).toContain("Entrar al gestor");
+    expect(message.html).toContain("#0A2C5C");
+    expect(message.html).toContain("#BEDCF0");
   });
 
   it("usa TLS directo en 465 y un asunto de restablecimiento", async () => {
@@ -46,6 +49,7 @@ describe("correo de acceso", () => {
       port: 465, secure: true, requireTLS: false,
     }));
     expect(sendMail.mock.calls[0][0].subject).toContain("Nueva contraseña temporal");
+    expect(sendMail.mock.calls[0][0].html).toContain("Recupera el acceso a tu cuenta");
   });
 
   it("sin configuración no intenta enviar", async () => {
