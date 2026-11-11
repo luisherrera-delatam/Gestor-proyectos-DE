@@ -10,6 +10,7 @@ import DiscardedProjects from "./DiscardedProjects";
 import { DEFAULT_PORTFOLIO_URL, IMPLEMENTATIONS_PORTFOLIO_URL } from "@/lib/portfolio-report";
 import AccessGate, { ChangePasswordForm, type Access } from "./AccessGate";
 import UsersAdmin, { RoleBadge } from "./UsersAdmin";
+import InstallApp from "./InstallApp";
 import { can } from "@/lib/roles";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
@@ -622,14 +623,17 @@ function Home({ access }: { access: Access }) {
                 </button>
               </div>
             )}
+            <div className={`${access.enabled && user ? "" : "ml-auto "}flex shrink-0 items-center gap-2`}>
+            <InstallApp />
             <button
               type="button"
               onClick={toggleTheme}
               title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo noche"}
-              className={`${access.enabled && user ? "" : "ml-auto "}shrink-0 h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-dxnavy dark:text-gray-200 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition`}
+              className={`shrink-0 h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-dxnavy dark:text-gray-200 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition`}
             >
               {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
+            </div>
           </div>
           <p className="text-sm text-dxgray dark:text-gray-400 mt-1 sm:ml-[4.75rem] max-w-4xl">
             Conéctate con Asana, elige un proyecto y genera el Acta de Inicio, el

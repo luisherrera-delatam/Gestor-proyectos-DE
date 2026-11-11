@@ -1,17 +1,32 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Generador de Documentos — Data Express",
   description:
     "Genera el Acta de Inicio, el Acta de Cierre y el Gantt del proyecto desde Asana.",
+  applicationName: "Gestor DX",
   icons: {
     icon: [
-      { url: "/logo_dx.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
-    shortcut: "/logo_dx.png",
-    apple: "/logo_dx.png",
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
+  // iPhone / iPad: al "Agregar a inicio" se abre como app, con este nombre.
+  appleWebApp: { capable: true, title: "Gestor DX", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0A2C5C" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1f26" },
+  ],
 };
 
 // Se ejecuta antes del primer paint para aplicar la clase `dark` sin parpadeo.
