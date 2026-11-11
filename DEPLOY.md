@@ -143,7 +143,25 @@ pantalla.
    usuarios desde el botón **Usuarios**. Cada usuario recibe una contraseña
    temporal que cambia en su primer ingreso.
 
-### Seguridad
+### Correo de acceso por SMTP
+
+Configura en Vercel `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
+`SMTP_PASSWORD`, `SMTP_FROM` y `APP_URL`, y despliega la nueva versión.
+Guarda `SMTP_PASSWORD` como secreto. El remitente debe estar autorizado por
+tu servidor SMTP. Usa puerto 465 con `SMTP_SECURE=true` o puerto 587 con
+`SMTP_SECURE=false` (STARTTLS obligatorio). `APP_URL` debe ser la URL HTTPS
+del gestor; no se toma del encabezado de la petición.
+
+Crear un usuario o restablecer su contraseña envía el enlace de acceso,
+correo, permiso y contraseña temporal. El administrador ve si el servidor
+aceptó el mensaje; esa aceptación no garantiza que llegue a la bandeja de
+entrada. Si falta configuración o falla SMTP, la cuenta sigue creada y la
+contraseña temporal se muestra una sola vez para compartirla por un canal
+seguro. No vuelvas a crear la cuenta: para usuarios existentes, restablece
+la contraseña cuando corresponda. Esta acción invalida la anterior y cierra
+sus sesiones. No se envían correos por cambios de permisos o activación.
+
+### Seguridad de las cuentas
 
 - Contraseñas con hash scrypt y sal aleatoria; nunca se guardan en claro.
 - Sesión en cookie httpOnly cifrada (AES-256-GCM), válida 12 horas.

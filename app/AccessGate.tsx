@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import type { Role } from "@/lib/roles";
 
 export interface SessionUser {
@@ -23,6 +23,31 @@ export interface Access {
 
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
+
+function PasswordInput(props: Omit<ComponentProps<"input">, "type">) {
+  const [visible, setVisible] = useState(false);
+  const label = visible ? "Ocultar contraseña" : "Mostrar contraseña";
+
+  return (
+    <div className="relative">
+      <input {...props} type={visible ? "text" : "password"} className={`${props.className ?? inputClass} pr-12`} />
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={visible}
+        title={label}
+        onClick={() => setVisible((value) => !value)}
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-gray-500 hover:text-dxnavy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dxblue dark:text-gray-400 dark:hover:text-gray-100"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+          <circle cx="12" cy="12" r="3" />
+          {visible && <path d="m3 3 18 18" />}
+        </svg>
+      </button>
+    </div>
+  );
+}
 
 function Logo() {
   return (
@@ -106,8 +131,7 @@ function LoginScreen({ onDone }: { onDone: () => Promise<void> }) {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-dxnavy dark:text-gray-200">Contraseña</label>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -172,8 +196,7 @@ export function ChangePasswordForm({
         <label className="mb-1 block text-sm font-medium text-dxnavy dark:text-gray-200">
           Contraseña actual (o temporal)
         </label>
-        <input
-          type="password"
+        <PasswordInput
           autoComplete="current-password"
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
@@ -183,8 +206,7 @@ export function ChangePasswordForm({
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium text-dxnavy dark:text-gray-200">Nueva contraseña</label>
-        <input
-          type="password"
+        <PasswordInput
           autoComplete="new-password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
@@ -199,8 +221,7 @@ export function ChangePasswordForm({
         <label className="mb-1 block text-sm font-medium text-dxnavy dark:text-gray-200">
           Confirmar nueva contraseña
         </label>
-        <input
-          type="password"
+        <PasswordInput
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type Role, type User } from "@/lib/roles";
+import type { MailDelivery } from "@/lib/user-mail";
 
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
@@ -84,6 +85,7 @@ function TempPasswordNotice({
 export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: () => void }) {
   const [users, setUsers] = useState<User[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [delivery, setDelivery] = useState<MailDelivery | null>(null);
   const [notice, setNotice] = useState<{ email: string; password: string } | null>(null);
   const [busyId, setBusyId] = useState<number | "new" | null>(null);
   const [form, setForm] = useState<{ name: string; email: string; role: Role }>({
@@ -110,13 +112,16 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setDelivery(null);
+    setNotice(null);
     setBusyId("new");
     try {
-      const data = await api<{ user: User; tempPassword: string | null }>("/api/users", {
+      const data = await api<{ user: User; tempPassword: string | null; delivery?: MailDelivery }>("/api/users", {
         method: "POST",
         body: JSON.stringify(form),
       });
       if (data.tempPassword) setNotice({ email: data.user.email, password: data.tempPassword });
+      setDelivery(data.delivery ?? null);
       setForm({ name: "", email: "", role: form.role });
       await load();
     } catch (err) {
@@ -128,13 +133,16 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
 
   async function update(u: User, patch: Record<string, unknown>) {
     setError(null);
+    setDelivery(null);
+    setNotice(null);
     setBusyId(u.id);
     try {
-      const data = await api<{ user: User; tempPassword: string | null }>(`/api/users/${u.id}`, {
+      const data = await api<{ user: User; tempPassword: string | null; delivery?: MailDelivery }>(`/api/users/${u.id}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
       if (data.tempPassword) setNotice({ email: u.email, password: data.tempPassword });
+      setDelivery(data.delivery ?? null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el cambio.");
@@ -238,9 +246,15 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
           {busyId === "new" ? "Creando…" : "Crear usuario"}
         </button>
         <p className="text-[11px] text-dxgray dark:text-gray-400 md:col-span-4">
-          Se genera una contraseña temporal que el usuario cambia en su primer ingreso.
+          Se genera una contraseña temporal y se intenta enviarla por correo. El usuario debe cambiarla en su primer ingreso.
         </p>
       </form>
+
+      {delivery && (
+        <p role="status" className={`mb-4 rounded-md border p-3 text-sm ${delivery.status === "accepted" ? "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200" : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}>
+          {delivery.message}
+        </p>
+      )}
 
       {notice && (
         <div className="mb-4">

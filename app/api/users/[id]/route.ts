@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminChangeProblem, requirePermission } from "@/lib/access";
 import { generateTempPassword, hashPassword, isRole, type UserPatch } from "@/lib/users";
+import { sendUserAccessMail } from "@/lib/user-mail";
 
 export const runtime = "nodejs";
 
@@ -54,7 +55,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
   const user = await guard.store.update(id, patch);
   if (!user) return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
-  return NextResponse.json({ user, tempPassword });
+  const delivery = tempPassword ? await sendUserAccessMail(user, tempPassword, "reset") : undefined;
+  return NextResponse.json({ user, tempPassword, delivery });
 }
 
 /** Eliminar usuario (solo administradores; no a uno mismo). */

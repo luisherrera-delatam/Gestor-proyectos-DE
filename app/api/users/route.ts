@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/access";
+import { sendUserAccessMail } from "@/lib/user-mail";
 import {
   generateTempPassword,
   hashPassword,
@@ -55,7 +56,8 @@ export async function POST(req: NextRequest) {
       passwordHash: hashPassword(password),
       mustChangePassword: true,
     });
-    return NextResponse.json({ user, tempPassword: generated ? password : null }, { status: 201 });
+    const delivery = await sendUserAccessMail(user, password, "invite");
+    return NextResponse.json({ user, tempPassword: generated ? password : null, delivery }, { status: 201 });
   } catch (err) {
     if (err instanceof Error && err.message === "DUPLICATE_EMAIL") {
       return NextResponse.json({ error: "Ya existe un usuario con ese correo." }, { status: 409 });
