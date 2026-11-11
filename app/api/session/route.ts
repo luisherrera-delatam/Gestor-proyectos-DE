@@ -20,6 +20,7 @@ function sessionUser(u: User) {
     role: u.role,
     mustChangePassword: u.mustChangePassword,
     countries: u.countries,
+    projects: u.role === "client" ? u.projects : [],
   };
 }
 

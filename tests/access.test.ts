@@ -69,6 +69,10 @@ describe("permisos por rol", () => {
     expect(can("viewer", "view")).toBe(true);
     expect(can("viewer", "generate")).toBe(false);
     expect(can("viewer", "admin")).toBe(false);
+    // El cliente no entra a ninguna ruta del gestor (solo a su portal).
+    expect(can("client", "view")).toBe(false);
+    expect(can("client", "generate")).toBe(false);
+    expect(can("client", "admin")).toBe(false);
   });
 });
 
@@ -222,7 +226,7 @@ describe("países que puede ver cada usuario", () => {
 
   it("bloquea abrir un proyecto de otro país (vista previa, Actas, Gantt, ZIP)", async () => {
     const { denyIfCountryNotAllowed } = await import("@/lib/access");
-    const base = { id: 1, email: "a@b.com", name: "A", active: true, mustChangePassword: false, sessionVersion: 1, createdAt: "", lastLoginAt: null };
+    const base = { id: 1, email: "a@b.com", name: "A", active: true, mustChangePassword: false, sessionVersion: 1, createdAt: "", lastLoginAt: null, projects: [] };
     const find = async (gid: string) => (gid === "mx" ? "México" : "Colombia");
     const restringido = { ...base, role: "editor" as const, countries: ["México"] };
     expect(await denyIfCountryNotAllowed(restringido, "mx", "tok", find)).toBeNull();

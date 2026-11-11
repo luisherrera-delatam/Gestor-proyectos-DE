@@ -123,6 +123,7 @@ funciona como antes.
 | **Administrador** | Todo, y además crea usuarios, cambia permisos, restablece contraseñas, desactiva y elimina usuarios. |
 | **Acceso a proyectos** | Ve todo, descarga informes y genera Actas de Inicio/Cierre, Gantt y ZIP. |
 | **Solo vista** | Ve todo y descarga informes (Excel y Word de portafolio, Excel por país). No genera Actas, Gantt ni ZIP. |
+| **Cliente** | Usuario externo. Solo ve el portal "Seguimiento de proyectos" con sus proyectos asignados: estatus, % de avance, fechas, tareas pendientes y Gantt (PDF). |
 
 Los permisos se validan en el servidor (cada ruta de `/api`), no solo en la
 pantalla.
@@ -136,6 +137,19 @@ aplica en el servidor: lista de proyectos del paso 2, informes de portafolio
 (vista previa, Actas, Gantt, ZIP), se verifica su país por el código del nombre
 o su subportafolio. Los proyectos sin país reconocible ("Otros") no los ven los
 usuarios con países restringidos. Los cambios aplican de inmediato.
+
+### Clientes
+
+Al crear un usuario con permiso **Cliente** se eligen sus proyectos
+(**Proyectos que ve**, con buscador; al menos uno). Al entrar, el cliente solo
+ve el portal de seguimiento; cualquier otra ruta de `/api` responde 403, y el
+detalle (`/api/client/project`) y el Gantt validan que el proyecto sea suyo. Al
+cliente no se le envían notas de tareas ni el texto interno de los estatus.
+
+**Depurar clientes de proyectos cerrados** (Usuarios) revisa en Asana los
+proyectos de cada cliente y permite eliminar a los que ya no tienen ninguno
+vigente (todos finalizados, descartados o borrados). Antes de borrar se vuelve
+a verificar en el servidor y nunca se elimina a un usuario que no sea Cliente.
 
 ### Configuración (una sola vez)
 

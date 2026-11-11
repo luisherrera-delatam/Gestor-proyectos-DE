@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchProjectData, resolveProjectGid } from "@/lib/asana";
 import { applyRefreshedCookie } from "@/lib/asana-auth";
-import { denyIfCountryNotAllowed, resolveAccess } from "@/lib/access";
+import { resolveProjectAccess } from "@/lib/access";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import { buildGanttDataset } from "@/lib/gantt-data";
 import { buildGanttPdf } from "@/lib/gantt-pdf";
@@ -18,11 +18,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cuerpo de la petición inválido." }, { status: 400 });
   }
 
-  // Sesión del gestor + permiso "generate"; con control de acceso usa la conexión central de Asana.
-  const access = await resolveAccess(req, body.token, "generate");
-  if (!access.ok) return access.response;
-  const auth = access.auth;
-
   const projectGid = resolveProjectGid(body);
   if (!projectGid) {
     return NextResponse.json(
@@ -31,9 +26,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Usuarios con países restringidos solo pueden abrir proyectos de esos países.
-  const denied = await denyIfCountryNotAllowed(access.user, projectGid, auth.token);
-  if (denied) return denied;
+  // Permiso "generate" + filtro por país; los clientes, solo sus proyectos asignados.
+  const access = await resolveProjectAccess(req, body.token, projectGid, "generate");
+  if (!access.ok) return access.response;
+  const auth = access.auth;
 
   try {
     const data = await fetchProjectData(projectGid, auth.token);

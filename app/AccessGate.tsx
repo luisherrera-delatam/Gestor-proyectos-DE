@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ComponentProps, type ReactNode } from "react";
-import type { Role } from "@/lib/roles";
+import type { ClientProject, Role } from "@/lib/roles";
 
 export interface SessionUser {
   id: number;
@@ -11,6 +11,8 @@ export interface SessionUser {
   mustChangePassword: boolean;
   /** Países que puede ver (vacío = todos). */
   countries: string[];
+  /** Proyectos asignados (solo clientes). */
+  projects: ClientProject[];
 }
 
 export interface Access {

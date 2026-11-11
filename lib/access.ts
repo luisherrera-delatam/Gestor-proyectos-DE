@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthError, resolveAuth, type ResolvedAuth } from "./asana-auth";
 import { sealJson, unsealJson } from "./session";
-import { countryFilter } from "./roles";
+import { clientCanSee, countryFilter } from "./roles";
 import { findProjectCountry } from "./portfolio-projects";
 import {
   can,
@@ -310,4 +310,61 @@ export async function denyIfCountryNotAllowed(
     { error: "Este proyecto es de un país que tu usuario no tiene permitido." },
     { status: 403 }
   );
+}
+
+// ── Clientes ─────────────────────────────────────────────────────────────────
+
+/**
+ * Para las rutas de un proyecto que también usa el portal de clientes (Gantt,
+ * detalle del proyecto):
+ *   - Cliente: solo si el proyecto está entre los suyos (y ya cambió su
+ *     contraseña temporal); se lee con la conexión central de Asana.
+ *   - Resto: el permiso `perm` de siempre y el filtro por país.
+ */
+export async function resolveProjectAccess(
+  req: NextRequest,
+  bodyToken: string | null | undefined,
+  projectGid: string,
+  perm: Permission
+): Promise<AccessResult> {
+  const store = getUserStore();
+  if (store) {
+    let user: User | null = null;
+    try {
+      user = await userFromCookie(store, req.cookies.get(USER_COOKIE)?.value);
+    } catch {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: "No se pudo consultar la base de datos de usuarios." }, { status: 503 }),
+      };
+    }
+    if (user?.role === "client") {
+      if (user.mustChangePassword) {
+        return { ok: false, response: NextResponse.json({ error: "Primero cambia tu contraseña." }, { status: 403 }) };
+      }
+      if (!clientCanSee(user, projectGid)) {
+        return {
+          ok: false,
+          response: NextResponse.json({ error: "Este proyecto no está asignado a tu usuario." }, { status: 403 }),
+        };
+      }
+      const token = centralAsanaToken();
+      if (!token) {
+        return {
+          ok: false,
+          response: NextResponse.json(
+            { error: "El servicio no está disponible en este momento. Contacta a Data Express." },
+            { status: 503 }
+          ),
+        };
+      }
+      return { ok: true, auth: { token }, user };
+    }
+  }
+
+  const access = await resolveAccess(req, bodyToken, perm);
+  if (!access.ok) return access;
+  const denied = await denyIfCountryNotAllowed(access.user, projectGid, access.auth.token);
+  if (denied) return { ok: false, response: denied };
+  return access;
 }

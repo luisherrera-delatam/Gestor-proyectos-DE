@@ -7,6 +7,7 @@
  *             Actas de Inicio/Cierre, Gantt y ZIP.
  *   - viewer  (Solo vista): ve todo y descarga informes (Excel / Word de
  *             portafolio y Excel por país); no genera Actas, Gantt ni ZIP.
+ *   - client  (Cliente): externo, solo ve sus proyectos asignados.
  *
  * Los usuarios se guardan en Neon Postgres (DATABASE_URL o POSTGRES_URL).
  * Las contraseñas se guardan con scrypt (nunca en claro).
@@ -19,6 +20,8 @@ export {
   COUNTRY_CHOICES,
   countryFilter,
   normalizeCountries,
+  normalizeProjects,
+  clientCanSee,
   ROLES,
   ROLE_LABELS,
   ROLE_DESCRIPTIONS,
@@ -26,8 +29,17 @@ export {
   isRole,
   type Permission,
   type Role,
+  type ClientProject,
 } from "./roles";
-import { normalizeCountries, type Role } from "./roles";
+import { normalizeCountries, normalizeProjects, type ClientProject, type Role } from "./roles";
+
+function parseProjects(value: string | null | undefined): ClientProject[] {
+  try {
+    return normalizeProjects(JSON.parse(value || "[]"));
+  } catch {
+    return [];
+  }
+}
 
 function parseCountries(value: string | null | undefined): string[] {
   try {
@@ -115,6 +127,8 @@ export interface UserPatch {
   mustChangePassword?: boolean;
   /** Países permitidos (vacío = todos). */
   countries?: string[];
+  /** Proyectos asignados (rol Cliente). */
+  projects?: ClientProject[];
   bumpSession?: boolean;
   touchLogin?: boolean;
 }
@@ -131,6 +145,7 @@ export interface UserStore {
     passwordHash: string;
     mustChangePassword: boolean;
     countries?: string[];
+    projects?: ClientProject[];
   }): Promise<User>;
   update(id: number, patch: UserPatch): Promise<User | null>;
   remove(id: number): Promise<boolean>;
@@ -146,6 +161,7 @@ export function publicUser(u: UserWithHash | User): User {
     mustChangePassword: u.mustChangePassword,
     sessionVersion: u.sessionVersion,
     countries: [...(u.countries ?? [])],
+    projects: (u.projects ?? []).map((p) => ({ ...p })),
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt,
   };
@@ -178,6 +194,7 @@ export function createMemoryStore(): UserStore {
         active: true,
         mustChangePassword: u.mustChangePassword,
         countries: normalizeCountries(u.countries),
+        projects: normalizeProjects(u.projects),
         sessionVersion: 1,
         createdAt: new Date().toISOString(),
         lastLoginAt: null,
@@ -195,6 +212,7 @@ export function createMemoryStore(): UserStore {
       if (patch.passwordHash !== undefined) row.passwordHash = patch.passwordHash;
       if (patch.mustChangePassword !== undefined) row.mustChangePassword = patch.mustChangePassword;
       if (patch.countries !== undefined) row.countries = normalizeCountries(patch.countries);
+      if (patch.projects !== undefined) row.projects = normalizeProjects(patch.projects);
       if (patch.bumpSession) row.sessionVersion++;
       if (patch.touchLogin) row.lastLoginAt = new Date().toISOString();
       return publicUser(row);
@@ -216,6 +234,7 @@ interface DbRow {
   active: boolean;
   must_change_password: boolean;
   countries: string | null;
+  projects: string | null;
   session_version: number;
   created_at: string | Date;
   last_login_at: string | Date | null;
@@ -232,6 +251,7 @@ function fromDb(r: DbRow): UserWithHash {
     active: r.active,
     mustChangePassword: r.must_change_password,
     countries: parseCountries(r.countries),
+    projects: parseProjects(r.projects),
     sessionVersion: Number(r.session_version),
     createdAt: iso(r.created_at)!,
     lastLoginAt: iso(r.last_login_at),
@@ -254,7 +274,7 @@ export function createPostgresStore(url: string): UserStore {
         email TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL DEFAULT '',
         password_hash TEXT NOT NULL,
-        role TEXT NOT NULL CHECK (role IN ('admin', 'editor', 'viewer')),
+        role TEXT NOT NULL,
         active BOOLEAN NOT NULL DEFAULT TRUE,
         must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
         session_version INTEGER NOT NULL DEFAULT 1,
@@ -263,6 +283,21 @@ export function createPostgresStore(url: string): UserStore {
       )`
       // Columna agregada después: países permitidos (JSON, '[]' = todos).
       .then(() => sql`ALTER TABLE gestor_users ADD COLUMN IF NOT EXISTS countries TEXT NOT NULL DEFAULT '[]'`)
+      // Proyectos asignados a clientes (JSON [{gid, name}]).
+      .then(() => sql`ALTER TABLE gestor_users ADD COLUMN IF NOT EXISTS projects TEXT NOT NULL DEFAULT '[]'`)
+      // La primera versión limitaba el rol a admin/editor/viewer: se cambia la
+      // regla para admitir "client" (sin fallar si otra instancia ya lo hizo).
+      .then(
+        () => sql`
+        DO $$ BEGIN
+          ALTER TABLE gestor_users DROP CONSTRAINT IF EXISTS gestor_users_role_check;
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'gestor_users_role_v2') THEN
+            ALTER TABLE gestor_users ADD CONSTRAINT gestor_users_role_v2
+              CHECK (role IN ('admin', 'editor', 'viewer', 'client'));
+          END IF;
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$`
+      )
       .catch((err) => {
         ready = null;
         throw err;
@@ -293,9 +328,9 @@ export function createPostgresStore(url: string): UserStore {
       await init();
       try {
         const rows = (await sql`
-          INSERT INTO gestor_users (email, name, password_hash, role, must_change_password, countries)
+          INSERT INTO gestor_users (email, name, password_hash, role, must_change_password, countries, projects)
           VALUES (${normalizeEmail(u.email)}, ${u.name}, ${u.passwordHash}, ${u.role}, ${u.mustChangePassword},
-                  ${JSON.stringify(normalizeCountries(u.countries))})
+                  ${JSON.stringify(normalizeCountries(u.countries))}, ${JSON.stringify(normalizeProjects(u.projects))})
           RETURNING *`) as DbRow[];
         return publicUser(fromDb(rows[0]));
       } catch (err) {
@@ -313,6 +348,7 @@ export function createPostgresStore(url: string): UserStore {
           password_hash = COALESCE(${patch.passwordHash ?? null}, password_hash),
           must_change_password = COALESCE(${patch.mustChangePassword ?? null}, must_change_password),
           countries = COALESCE(${patch.countries === undefined ? null : JSON.stringify(normalizeCountries(patch.countries))}, countries),
+          projects = COALESCE(${patch.projects === undefined ? null : JSON.stringify(normalizeProjects(patch.projects))}, projects),
           session_version = session_version + ${patch.bumpSession ? 1 : 0},
           last_login_at = CASE WHEN ${patch.touchLogin === true} THEN NOW() ELSE last_login_at END
         WHERE id = ${id}

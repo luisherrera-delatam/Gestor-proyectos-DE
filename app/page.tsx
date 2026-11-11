@@ -11,6 +11,7 @@ import { DEFAULT_PORTFOLIO_URL, IMPLEMENTATIONS_PORTFOLIO_URL } from "@/lib/port
 import AccessGate, { ChangePasswordForm, type Access } from "./AccessGate";
 import UsersAdmin, { RoleBadge } from "./UsersAdmin";
 import InstallApp from "./InstallApp";
+import ClientPortal from "./ClientPortal";
 import { can } from "@/lib/roles";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
@@ -206,7 +207,14 @@ const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
 
 export default function Page() {
-  return <AccessGate>{(access) => <Home access={access} />}</AccessGate>;
+  return (
+    <AccessGate>
+      {(access) =>
+        // Los clientes solo ven el portal de seguimiento de sus proyectos.
+        access.enabled && access.user?.role === "client" ? <ClientPortal access={access} /> : <Home access={access} />
+      }
+    </AccessGate>
+  );
 }
 
 function Home({ access }: { access: Access }) {

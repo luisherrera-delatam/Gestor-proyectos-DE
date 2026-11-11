@@ -8,6 +8,7 @@ import {
   isValidEmail,
   normalizeEmail,
   normalizeCountries,
+  normalizeProjects,
   passwordProblem,
 } from "@/lib/users";
 
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Crear usuario (solo administradores): { email, name, role, password? }.
+ * Crear usuario (solo administradores): { email, name, role, password?, countries?, projects? }.
  * Si no se manda contraseña se genera una temporal y se devuelve una sola vez.
  * El usuario debe cambiarla en su primer ingreso.
  */
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (!guard.ok) return guard.response;
   if (!guard.store) return NextResponse.json({ error: "El control de acceso no está activo." }, { status: 400 });
 
-  let body: { email?: string; name?: string; role?: string; password?: string; countries?: unknown };
+  let body: { email?: string; name?: string; role?: string; password?: string; countries?: unknown; projects?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -43,6 +44,11 @@ export async function POST(req: NextRequest) {
   if (!isValidEmail(email)) return NextResponse.json({ error: "Correo inválido." }, { status: 400 });
   if (!name) return NextResponse.json({ error: "Escribe el nombre del usuario." }, { status: 400 });
   if (!isRole(body.role)) return NextResponse.json({ error: "Permiso inválido." }, { status: 400 });
+  const isClient = body.role === "client";
+  const projects = isClient ? normalizeProjects(body.projects) : [];
+  if (isClient && projects.length === 0) {
+    return NextResponse.json({ error: "Asigna al menos un proyecto al cliente." }, { status: 400 });
+  }
 
   const generated = !body.password;
   const password = body.password || generateTempPassword();
@@ -57,7 +63,9 @@ export async function POST(req: NextRequest) {
       passwordHash: hashPassword(password),
       mustChangePassword: true,
       // Países que puede ver (vacío = todos).
-      countries: normalizeCountries(body.countries),
+      countries: isClient ? [] : normalizeCountries(body.countries),
+      // Clientes: los proyectos que pueden ver.
+      projects,
     });
     const delivery = await sendUserAccessMail(user, password, "invite");
     return NextResponse.json({ user, tempPassword: generated ? password : null, delivery }, { status: 201 });

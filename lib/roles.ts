@@ -7,21 +7,26 @@
  *             Actas de Inicio/Cierre, Gantt y ZIP.
  *   - viewer  (Solo vista): ve todo y descarga informes (Excel / Word de
  *             portafolio y Excel por país); no genera Actas, Gantt ni ZIP.
+ *   - client  (Cliente): usuario externo. Solo ve una página de seguimiento
+ *             de los proyectos que se le asignan (estatus, avance, fechas,
+ *             tareas pendientes y Gantt). No entra a ninguna otra parte.
  */
 
-export type Role = "admin" | "editor" | "viewer";
-export const ROLES: Role[] = ["admin", "editor", "viewer"];
+export type Role = "admin" | "editor" | "viewer" | "client";
+export const ROLES: Role[] = ["admin", "editor", "viewer", "client"];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrador",
   editor: "Acceso a proyectos",
   viewer: "Solo vista",
+  client: "Cliente",
 };
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   admin: "Todo, y además administra usuarios y permisos.",
   editor: "Ve todo, descarga informes y genera Actas, Gantt y ZIP.",
   viewer: "Ve todo y descarga informes (Excel y Word). No genera Actas, Gantt ni ZIP.",
+  client: "Externo: solo ve sus proyectos asignados (estatus, avance, fechas, pendientes y Gantt).",
 };
 
 /** Permisos que piden las rutas de la API. */
@@ -29,6 +34,8 @@ export type Permission = "view" | "generate" | "admin";
 
 export function can(role: Role, perm: Permission): boolean {
   if (role === "admin") return true;
+  // El cliente no usa ninguna ruta del gestor: solo las de su portal (ver clientCanSee).
+  if (role === "client") return false;
   if (perm === "admin") return false;
   if (perm === "generate") return role === "editor";
   return true; // view
@@ -53,6 +60,36 @@ export interface User {
    * Países que puede ver. Vacío = todos. Los administradores siempre ven todos.
    */
   countries: string[];
+  /** Proyectos asignados (solo rol Cliente). */
+  projects: ClientProject[];
+}
+
+/** Proyecto asignado a un cliente (se guarda el nombre para mostrarlo sin consultar Asana). */
+export interface ClientProject {
+  gid: string;
+  name: string;
+}
+
+/** Limpia la lista de proyectos: gid numérico, sin repetir, máximo 50. */
+export function normalizeProjects(input: unknown): ClientProject[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: ClientProject[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const gid = String((item as { gid?: unknown }).gid ?? "").trim();
+    if (!/^\d{6,25}$/.test(gid) || seen.has(gid)) continue;
+    seen.add(gid);
+    const name = String((item as { name?: unknown }).name ?? "").trim().slice(0, 200) || gid;
+    out.push({ gid, name });
+    if (out.length >= 50) break;
+  }
+  return out;
+}
+
+/** ¿El cliente tiene asignado este proyecto? */
+export function clientCanSee(user: Pick<User, "role" | "projects"> | null | undefined, gid: string): boolean {
+  return !!user && user.role === "client" && (user.projects ?? []).some((p) => p.gid === gid);
 }
 
 /**

@@ -341,6 +341,57 @@ export async function fetchProjectName(token: string, projectGid: string): Promi
   return res.data.name;
 }
 
+/** Estado de cierre y último estatus de un proyecto (portal de clientes y depuración). */
+export interface AsanaProjectState {
+  gid: string;
+  name: string;
+  completed: boolean;
+  archived: boolean;
+  completedAt: string | null;
+  statusType: string | null;
+  statusTitle: string | null;
+  statusDate: string | null;
+}
+
+/** Estado de un proyecto, o null si ya no existe en Asana (404). */
+export async function fetchProjectState(token: string, projectGid: string): Promise<AsanaProjectState | null> {
+  const fields = [
+    "name",
+    "completed",
+    "completed_at",
+    "archived",
+    "current_status_update.status_type",
+    "current_status_update.title",
+    "current_status_update.created_at",
+  ].join(",");
+  try {
+    const res: {
+      data: {
+        gid: string;
+        name: string;
+        completed?: boolean | null;
+        completed_at?: string | null;
+        archived?: boolean | null;
+        current_status_update?: { status_type?: string | null; title?: string | null; created_at?: string | null } | null;
+      };
+    } = await asanaFetch(`/projects/${projectGid}?opt_fields=${fields}`, token);
+    const d = res.data;
+    return {
+      gid: d.gid ?? projectGid,
+      name: d.name,
+      completed: d.completed === true,
+      archived: d.archived === true,
+      completedAt: d.completed_at ?? null,
+      statusType: d.current_status_update?.status_type ?? null,
+      statusTitle: d.current_status_update?.title ?? null,
+      statusDate: d.current_status_update?.created_at ?? null,
+    };
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("Proyecto no encontrado")) return null;
+    throw err;
+  }
+}
+
 /** Usuario autenticado (para mostrar "Conectado como ..."). */
 export async function fetchCurrentUser(token: string): Promise<AsanaUser> {
   const res: { data: AsanaUser } = await asanaFetch("/users/me?opt_fields=name,email", token);
