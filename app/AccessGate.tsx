@@ -9,6 +9,8 @@ export interface SessionUser {
   name: string;
   role: Role;
   mustChangePassword: boolean;
+  /** Países que puede ver (vacío = todos). */
+  countries: string[];
 }
 
 export interface Access {

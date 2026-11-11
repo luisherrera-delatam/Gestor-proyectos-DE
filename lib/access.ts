@@ -18,6 +18,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthError, resolveAuth, type ResolvedAuth } from "./asana-auth";
 import { sealJson, unsealJson } from "./session";
+import { countryFilter } from "./roles";
+import { findProjectCountry } from "./portfolio-projects";
 import {
   can,
   getUserStore,
@@ -281,4 +283,31 @@ export async function resolveAccess(
     const message = err instanceof AuthError ? err.message : "No autorizado.";
     return { ok: false, response: NextResponse.json({ error: message }, { status: 401 }) };
   }
+}
+
+// ── Filtro por país ──────────────────────────────────────────────────────────
+
+/**
+ * Si el usuario tiene países restringidos, comprueba que el proyecto sea de
+ * uno de ellos. Devuelve la respuesta 403 a enviar, o null si puede verlo.
+ */
+export async function denyIfCountryNotAllowed(
+  user: User | null,
+  projectGid: string,
+  token: string,
+  find: (gid: string, token: string) => Promise<string> = findProjectCountry
+): Promise<NextResponse | null> {
+  const allowed = countryFilter(user);
+  if (!allowed) return null;
+  let country: string;
+  try {
+    country = await find(projectGid, token);
+  } catch {
+    return NextResponse.json({ error: "No se pudo verificar el país del proyecto." }, { status: 502 });
+  }
+  if (allowed(country)) return null;
+  return NextResponse.json(
+    { error: "Este proyecto es de un país que tu usuario no tiene permitido." },
+    { status: 403 }
+  );
 }

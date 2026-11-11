@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, type Role, type User } from "@/lib/roles";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  COUNTRY_CHOICES,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  ROLES,
+  type Role,
+  type User,
+} from "@/lib/roles";
 import type { MailDelivery } from "@/lib/user-mail";
 
 const inputClass =
@@ -18,6 +26,147 @@ export function RoleBadge({ role }: { role: Role }) {
     <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${ROLE_BADGE[role]}`}>
       {ROLE_LABELS[role]}
     </span>
+  );
+}
+
+/**
+ * Selector de países que puede ver un usuario. Vacío = todos los países.
+ * Los administradores siempre ven todos (el selector queda bloqueado).
+ */
+function CountryPicker({
+  value,
+  onChange,
+  disabled,
+  adminRole,
+  compact,
+}: {
+  value: string[];
+  onChange: (countries: string[]) => void;
+  disabled?: boolean;
+  adminRole?: boolean;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<string[]>(value);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // La ventanita se dibuja en <body> (por encima de todo y sin que la recorte la
+  // tabla con scroll); se cierra si la página se desplaza o cambia de tamaño.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const label = adminRole
+    ? "Todos (administrador)"
+    : value.length === 0
+      ? "Todos los países"
+      : value.length <= 2
+        ? value.join(", ")
+        : `${value.length} países`;
+
+  function toggle(c: string) {
+    setDraft((d) => (d.includes(c) ? d.filter((x) => x !== c) : [...d, c]));
+  }
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={disabled || adminRole}
+        title={adminRole ? "Los administradores ven todos los países" : value.join(", ") || "Todos los países"}
+        onClick={() => {
+          setDraft(value);
+          const r = buttonRef.current?.getBoundingClientRect();
+          if (r) {
+            const width = 256;
+            const height = 380;
+            const below = r.bottom + 4 + height <= window.innerHeight;
+            setPos({
+              top: below ? r.bottom + 4 : Math.max(8, r.top - height - 4),
+              left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+            });
+          }
+          setOpen((v) => !v);
+        }}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60 ${
+          compact ? "!py-1 !text-xs" : ""
+        }`}
+      >
+        <span className="truncate">{label}</span>
+        <svg className="h-3.5 w-3.5 shrink-0 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open && pos && createPortal(
+        <>
+        {/* Capa transparente: un clic fuera cierra sin aplicar. */}
+        <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} aria-hidden="true" />
+        <div
+          role="dialog"
+          aria-label="Países que puede ver"
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-[61] w-64 rounded-lg border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-[#23272f]"
+        >
+          <p className="mb-2 text-[11px] text-dxgray dark:text-gray-400">
+            Marca los países que puede ver. Sin marcar ninguno ve todos.
+          </p>
+          <div className="grid gap-1">
+            {COUNTRY_CHOICES.map((c) => (
+              <label key={c} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-dxnavy hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-[#2e343d]">
+                <input
+                  type="checkbox"
+                  checked={draft.includes(c)}
+                  onChange={() => toggle(c)}
+                  className="h-4 w-4 accent-[#0A2C5C]"
+                />
+                {c}
+              </label>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setDraft([])}
+              className="text-xs text-dxnavy underline dark:text-dxblue"
+            >
+              Todos los países
+            </button>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:text-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(COUNTRY_CHOICES.filter((c) => draft.includes(c)));
+                  setOpen(false);
+                }}
+                className="rounded-md bg-dxnavy px-2 py-1 text-xs font-medium text-white dark:bg-dxblue dark:text-gray-900"
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+        </>,
+        document.body
+      )}
+    </div>
   );
 }
 
@@ -88,10 +237,11 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
   const [delivery, setDelivery] = useState<MailDelivery | null>(null);
   const [notice, setNotice] = useState<{ email: string; password: string } | null>(null);
   const [busyId, setBusyId] = useState<number | "new" | null>(null);
-  const [form, setForm] = useState<{ name: string; email: string; role: Role }>({
+  const [form, setForm] = useState<{ name: string; email: string; role: Role; countries: string[] }>({
     name: "",
     email: "",
     role: "viewer",
+    countries: [],
   });
 
   const load = useCallback(async () => {
@@ -122,7 +272,7 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
       });
       if (data.tempPassword) setNotice({ email: data.user.email, password: data.tempPassword });
       setDelivery(data.delivery ?? null);
-      setForm({ name: "", email: "", role: form.role });
+      setForm({ name: "", email: "", role: form.role, countries: form.countries });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear el usuario.");
@@ -201,7 +351,7 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
       {/* Nuevo usuario */}
       <form
         onSubmit={create}
-        className="mb-4 grid gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700 md:grid-cols-[1fr_1fr_12rem_auto] md:items-end"
+        className="mb-4 grid gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700 md:grid-cols-2 lg:grid-cols-[1fr_1fr_11rem_12rem_auto] lg:items-end"
       >
         <div>
           <label className="mb-1 block text-xs font-medium text-dxnavy dark:text-gray-200">Nombre</label>
@@ -238,6 +388,14 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
             ))}
           </select>
         </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-dxnavy dark:text-gray-200">Países que ve</label>
+          <CountryPicker
+            value={form.countries}
+            adminRole={form.role === "admin"}
+            onChange={(countries) => setForm({ ...form, countries })}
+          />
+        </div>
         <button
           type="submit"
           disabled={busyId === "new"}
@@ -245,7 +403,7 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
         >
           {busyId === "new" ? "Creando…" : "Crear usuario"}
         </button>
-        <p className="text-[11px] text-dxgray dark:text-gray-400 md:col-span-4">
+        <p className="text-[11px] text-dxgray dark:text-gray-400 md:col-span-2 lg:col-span-5">
           Se genera una contraseña temporal y se intenta enviarla por correo. El usuario debe cambiarla en su primer ingreso.
         </p>
       </form>
@@ -273,11 +431,12 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
         <p className="text-sm text-dxgray dark:text-gray-400">Cargando usuarios…</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="text-[11px] uppercase tracking-wider text-dxgray dark:text-gray-400">
               <tr className="border-b border-gray-200 dark:border-gray-700">
                 <th className="py-2 pr-3 font-medium">Usuario</th>
                 <th className="py-2 pr-3 font-medium">Permiso</th>
+                <th className="py-2 pr-3 font-medium">Países que ve</th>
                 <th className="py-2 pr-3 font-medium">Estado</th>
                 <th className="py-2 pr-3 font-medium">Último acceso</th>
                 <th className="py-2 font-medium text-right">Acciones</th>
@@ -314,6 +473,15 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
                           </option>
                         ))}
                       </select>
+                    </td>
+                    <td className="py-2.5 pr-3 min-w-[11rem]">
+                      <CountryPicker
+                        compact
+                        value={u.countries ?? []}
+                        adminRole={u.role === "admin"}
+                        disabled={busy}
+                        onChange={(countries) => update(u, { countries })}
+                      />
                     </td>
                     <td className="py-2.5 pr-3">
                       <span

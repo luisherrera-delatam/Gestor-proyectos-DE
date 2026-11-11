@@ -7,6 +7,7 @@ import {
   isRole,
   isValidEmail,
   normalizeEmail,
+  normalizeCountries,
   passwordProblem,
 } from "@/lib/users";
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   if (!guard.ok) return guard.response;
   if (!guard.store) return NextResponse.json({ error: "El control de acceso no está activo." }, { status: 400 });
 
-  let body: { email?: string; name?: string; role?: string; password?: string };
+  let body: { email?: string; name?: string; role?: string; password?: string; countries?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest) {
       role: body.role,
       passwordHash: hashPassword(password),
       mustChangePassword: true,
+      // Países que puede ver (vacío = todos).
+      countries: normalizeCountries(body.countries),
     });
     const delivery = await sendUserAccessMail(user, password, "invite");
     return NextResponse.json({ user, tempPassword: generated ? password : null, delivery }, { status: 201 });

@@ -4,7 +4,14 @@
  * subportafolios. Cada portafolio es un grupo (una columna en la página).
  */
 
-import { fetchTaskCounts, isProjectActive, type AsanaProjectListItem, type WorkspaceProjects } from "./asana";
+import {
+  fetchProjectName,
+  fetchTaskCounts,
+  isProjectActive,
+  type AsanaProjectListItem,
+  type WorkspaceProjects,
+} from "./asana";
+import { detectCountry, OTHER_COUNTRY } from "./countries";
 import {
   DEFAULT_PORTFOLIO_URL,
   IMPLEMENTATIONS_PORTFOLIO_URL,
@@ -90,6 +97,25 @@ async function withProgress(list: AsanaProjectListItem[], token: string): Promis
     }
   };
   await Promise.all(Array.from({ length: Math.min(10, list.length) }, worker));
+}
+
+/**
+ * País de un proyecto: por el código del nombre ("MX-26-…") y, si no lo tiene,
+ * por el subportafolio donde está dentro de los portafolios del gestor.
+ * "Otros" si no se encuentra.
+ */
+export async function findProjectCountry(projectGid: string, token: string): Promise<string> {
+  const name = await fetchProjectName(token, projectGid);
+  const byName = detectCountry(name);
+  if (byName !== OTHER_COUNTRY) return byName;
+  for (const pf of PROJECT_PORTFOLIOS) {
+    const gid = extractPortfolioGid(pf.url);
+    if (!gid) continue;
+    const { projects } = await fetchPortfolioProjects(gid, token);
+    const hit = projects.find((p) => p.gid === projectGid);
+    if (hit) return projectCountry(hit.name, hit.parentPortfolio);
+  }
+  return OTHER_COUNTRY;
 }
 
 /** Un grupo por portafolio (Desarrollo, Implementaciones) con sus proyectos vigentes y finalizados. */

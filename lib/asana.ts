@@ -332,6 +332,15 @@ export async function fetchProjectData(projectGid: string, token: string): Promi
   };
 }
 
+/** Nombre de un proyecto (para saber su país por el código del nombre). */
+export async function fetchProjectName(token: string, projectGid: string): Promise<string> {
+  const res: { data: { name: string } } = await asanaFetch(
+    `/projects/${projectGid}?opt_fields=name`,
+    token
+  );
+  return res.data.name;
+}
+
 /** Usuario autenticado (para mostrar "Conectado como ..."). */
 export async function fetchCurrentUser(token: string): Promise<AsanaUser> {
   const res: { data: AsanaUser } = await asanaFetch("/users/me?opt_fields=name,email", token);

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyRefreshedCookie } from "@/lib/asana-auth";
 import { resolveAccess } from "@/lib/access";
+import { countryFilter } from "@/lib/roles";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import {
   attachProgress,
   buildPortfolioReport,
   extractPortfolioGid,
   fetchPortfolioProjects,
+  projectCountry,
   isValidMonth,
 } from "@/lib/portfolio-report";
 import { buildPortfolioReportExcel } from "@/lib/portfolio-report-excel";
@@ -60,7 +62,13 @@ export async function POST(req: NextRequest) {
       portfolioGid,
       auth.token
     );
-    const report = buildPortfolioReport(name, projects, {
+    // Usuarios con países restringidos: el informe se arma solo con sus países
+    // (pantalla, Excel, Word y descartados).
+    const allowed = countryFilter(access.user);
+    const visible = allowed
+      ? projects.filter((p) => allowed(projectCountry(p.name, p.parentPortfolio)))
+      : projects;
+    const report = buildPortfolioReport(name, visible, {
       month: month || undefined,
       owner,
       subportfolios,

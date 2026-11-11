@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchPortfolioProjectLists } from "@/lib/portfolio-projects";
 import { applyRefreshedCookie } from "@/lib/asana-auth";
 import { resolveAccess } from "@/lib/access";
+import { countryFilter } from "@/lib/roles";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import { detectCountry } from "@/lib/countries";
 import { buildCountryExcel, type ExcelProjectRow } from "@/lib/excel";
@@ -28,6 +29,13 @@ export async function POST(req: NextRequest) {
   const auth = access.auth;
 
   try {
+    const allowed = countryFilter(access.user);
+    if (allowed && !allowed(country)) {
+      return NextResponse.json(
+        { error: "Tu usuario no tiene permitido ese país." },
+        { status: 403 }
+      );
+    }
     const workspaces = await fetchPortfolioProjectLists(auth.token);
     // Si se indica el grupo (columna Desarrollo / Implementaciones), solo ese.
     const groups = body.group ? workspaces.filter((w) => w.gid === body.group) : workspaces;

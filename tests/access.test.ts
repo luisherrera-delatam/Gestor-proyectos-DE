@@ -179,3 +179,67 @@ describe("reglas de administración", () => {
     ).rejects.toThrow("DUPLICATE_EMAIL");
   });
 });
+
+describe("países que puede ver cada usuario", () => {
+  it("normaliza la lista: solo países válidos, sin repetir y en orden", async () => {
+    const { normalizeCountries } = await import("@/lib/roles");
+    expect(normalizeCountries(["Perú", "México", "Perú", "Narnia", 3])).toEqual(["Perú", "México"]);
+    expect(normalizeCountries("México")).toEqual([]);
+    expect(normalizeCountries(undefined)).toEqual([]);
+  });
+
+  it("sin países o administrador = ve todos; con países = solo esos", async () => {
+    const { countryFilter } = await import("@/lib/roles");
+    expect(countryFilter({ role: "viewer", countries: [] })).toBeNull();
+    expect(countryFilter({ role: "admin", countries: ["México"] })).toBeNull();
+    expect(countryFilter(null)).toBeNull();
+    const f = countryFilter({ role: "editor", countries: ["México", "Perú"] })!;
+    expect(f("México")).toBe(true);
+    expect(f("Perú")).toBe(true);
+    expect(f("Colombia")).toBe(false);
+    expect(f("Otros")).toBe(false);
+    expect(f(null)).toBe(false);
+  });
+
+  it("se guarda al crear y al editar el usuario", async () => {
+    const store = createMemoryStore();
+    const u = await store.create({
+      email: "pe@delatam.com",
+      name: "Perú",
+      role: "viewer",
+      passwordHash: "x",
+      mustChangePassword: false,
+      countries: ["Perú", "Inventado"],
+    });
+    expect(u.countries).toEqual(["Perú"]);
+    const up = await store.update(u.id, { countries: ["México", "Colombia"] });
+    expect(up?.countries).toEqual(["Colombia", "México"]);
+    const sinCambio = await store.update(u.id, { name: "Otro nombre" });
+    expect(sinCambio?.countries).toEqual(["Colombia", "México"]);
+    const todos = await store.update(u.id, { countries: [] });
+    expect(todos?.countries).toEqual([]);
+  });
+
+  it("bloquea abrir un proyecto de otro país (vista previa, Actas, Gantt, ZIP)", async () => {
+    const { denyIfCountryNotAllowed } = await import("@/lib/access");
+    const base = { id: 1, email: "a@b.com", name: "A", active: true, mustChangePassword: false, sessionVersion: 1, createdAt: "", lastLoginAt: null };
+    const find = async (gid: string) => (gid === "mx" ? "México" : "Colombia");
+    const restringido = { ...base, role: "editor" as const, countries: ["México"] };
+    expect(await denyIfCountryNotAllowed(restringido, "mx", "tok", find)).toBeNull();
+    const res = await denyIfCountryNotAllowed(restringido, "co", "tok", find);
+    expect(res?.status).toBe(403);
+    // Sin restricción ni siquiera consulta el país.
+    let consultado = false;
+    const espia = async () => {
+      consultado = true;
+      return "Colombia";
+    };
+    expect(await denyIfCountryNotAllowed({ ...base, role: "viewer", countries: [] }, "co", "tok", espia)).toBeNull();
+    expect(consultado).toBe(false);
+    // Si no se puede verificar el país, se bloquea.
+    const falla = async () => {
+      throw new Error("asana caído");
+    };
+    expect((await denyIfCountryNotAllowed(restringido, "mx", "tok", falla))?.status).toBe(502);
+  });
+});

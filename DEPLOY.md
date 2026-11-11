@@ -127,6 +127,16 @@ funciona como antes.
 Los permisos se validan en el servidor (cada ruta de `/api`), no solo en la
 pantalla.
 
+### Países por usuario
+
+En **Usuarios → Países que ve** el administrador elige qué países ve cada
+usuario (vacío = todos; los administradores siempre ven todos). El filtro se
+aplica en el servidor: lista de proyectos del paso 2, informes de portafolio
+(pantalla, Excel y Word), descartados, Excel por país y, al abrir un proyecto
+(vista previa, Actas, Gantt, ZIP), se verifica su país por el código del nombre
+o su subportafolio. Los proyectos sin país reconocible ("Otros") no los ven los
+usuarios con países restringidos. Los cambios aplican de inmediato.
+
 ### Configuración (una sola vez)
 
 1. **Base de datos**: Vercel → proyecto → **Storage** → **Create Database** →

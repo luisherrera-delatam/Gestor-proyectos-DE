@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchProjectData, resolveProjectGid } from "@/lib/asana";
 import { applyRefreshedCookie } from "@/lib/asana-auth";
-import { resolveAccess } from "@/lib/access";
+import { denyIfCountryNotAllowed, resolveAccess } from "@/lib/access";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import { buildGanttDataset } from "@/lib/gantt-data";
 import { buildGanttPdf } from "@/lib/gantt-pdf";
@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Usuarios con países restringidos solo pueden abrir proyectos de esos países.
+  const denied = await denyIfCountryNotAllowed(access.user, projectGid, auth.token);
+  if (denied) return denied;
 
   try {
     const data = await fetchProjectData(projectGid, auth.token);

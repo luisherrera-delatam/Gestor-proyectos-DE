@@ -410,3 +410,19 @@ describe("cierre del mes (programados vs cerrados)", () => {
     expect(r.monthClosure.pct).toBeNull();
   });
 });
+
+describe("informe con países restringidos", () => {
+  it("al filtrar los proyectos por país, el informe solo trae esos países", async () => {
+    const { countryFilter } = await import("@/lib/roles");
+    const allowed = countryFilter({ role: "viewer", countries: ["México"] })!;
+    const visible = PROJECTS.filter((p) => allowed(projectCountry(p.name, p.parentPortfolio)));
+    const r = buildPortfolioReport("X", visible, { now: NOW });
+    const countries = new Set([
+      ...r.finished.map((p) => p.country),
+      ...r.pending.map((p) => p.country),
+      ...r.byCountry.map((c) => c.country),
+    ]);
+    expect([...countries]).toEqual(["México"]);
+    expect(r.summary.total).toBe(visible.filter((p) => !(p.archived && !p.completed)).length);
+  });
+});

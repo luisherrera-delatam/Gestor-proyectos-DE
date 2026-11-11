@@ -13,7 +13,14 @@ import { getUserStore, type User } from "@/lib/users";
 export const runtime = "nodejs";
 
 function sessionUser(u: User) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role, mustChangePassword: u.mustChangePassword };
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    mustChangePassword: u.mustChangePassword,
+    countries: u.countries,
+  };
 }
 
 /** Estado del control de acceso y usuario de la sesión. */

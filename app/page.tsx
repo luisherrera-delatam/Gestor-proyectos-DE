@@ -594,6 +594,14 @@ function Home({ access }: { access: Access }) {
                   <p className="text-[11px] text-dxgray dark:text-gray-400">{user.email}</p>
                 </div>
                 <RoleBadge role={user.role} />
+                {user.role !== "admin" && (user.countries?.length ?? 0) > 0 && (
+                  <span
+                    title={`Solo ves proyectos de: ${user.countries.join(", ")}`}
+                    className="max-w-[14rem] truncate rounded-full border border-gray-300 px-2 py-0.5 text-[10px] font-medium text-dxnavy dark:border-gray-600 dark:text-gray-200"
+                  >
+                    {user.countries.join(", ")}
+                  </span>
+                )}
                 {isAdmin && (
                   <button
                     type="button"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminChangeProblem, requirePermission } from "@/lib/access";
-import { generateTempPassword, hashPassword, isRole, type UserPatch } from "@/lib/users";
+import { generateTempPassword, hashPassword, isRole, type UserPatch, normalizeCountries } from "@/lib/users";
 import { sendUserAccessMail } from "@/lib/user-mail";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const id = Number((await params).id);
   if (!Number.isInteger(id)) return NextResponse.json({ error: "Usuario inválido." }, { status: 400 });
 
-  let body: { name?: string; role?: string; active?: boolean; resetPassword?: boolean };
+  let body: { name?: string; role?: string; active?: boolean; resetPassword?: boolean; countries?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -39,6 +39,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const patch: UserPatch = {};
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim().slice(0, 120);
   if (isRole(body.role)) patch.role = body.role;
+  // Países permitidos (vacío = todos). Aplica de inmediato: se leen en cada petición.
+  if (Array.isArray(body.countries)) patch.countries = normalizeCountries(body.countries);
   if (typeof body.active === "boolean") {
     patch.active = body.active;
     if (!body.active) patch.bumpSession = true; // cierra sus sesiones

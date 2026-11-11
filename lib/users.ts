@@ -16,6 +16,9 @@ import crypto from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 
 export {
+  COUNTRY_CHOICES,
+  countryFilter,
+  normalizeCountries,
   ROLES,
   ROLE_LABELS,
   ROLE_DESCRIPTIONS,
@@ -24,7 +27,15 @@ export {
   type Permission,
   type Role,
 } from "./roles";
-import type { Role } from "./roles";
+import { normalizeCountries, type Role } from "./roles";
+
+function parseCountries(value: string | null | undefined): string[] {
+  try {
+    return normalizeCountries(JSON.parse(value || "[]"));
+  } catch {
+    return [];
+  }
+}
 
 // ── Contraseñas ──────────────────────────────────────────────────────────────
 
@@ -102,6 +113,8 @@ export interface UserPatch {
   active?: boolean;
   passwordHash?: string;
   mustChangePassword?: boolean;
+  /** Países permitidos (vacío = todos). */
+  countries?: string[];
   bumpSession?: boolean;
   touchLogin?: boolean;
 }
@@ -111,7 +124,14 @@ export interface UserStore {
   list(): Promise<User[]>;
   findById(id: number): Promise<UserWithHash | null>;
   findByEmail(email: string): Promise<UserWithHash | null>;
-  create(u: { email: string; name: string; role: Role; passwordHash: string; mustChangePassword: boolean }): Promise<User>;
+  create(u: {
+    email: string;
+    name: string;
+    role: Role;
+    passwordHash: string;
+    mustChangePassword: boolean;
+    countries?: string[];
+  }): Promise<User>;
   update(id: number, patch: UserPatch): Promise<User | null>;
   remove(id: number): Promise<boolean>;
 }
@@ -125,6 +145,7 @@ export function publicUser(u: UserWithHash | User): User {
     active: u.active,
     mustChangePassword: u.mustChangePassword,
     sessionVersion: u.sessionVersion,
+    countries: [...(u.countries ?? [])],
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt,
   };
@@ -156,6 +177,7 @@ export function createMemoryStore(): UserStore {
         role: u.role,
         active: true,
         mustChangePassword: u.mustChangePassword,
+        countries: normalizeCountries(u.countries),
         sessionVersion: 1,
         createdAt: new Date().toISOString(),
         lastLoginAt: null,
@@ -172,6 +194,7 @@ export function createMemoryStore(): UserStore {
       if (patch.active !== undefined) row.active = patch.active;
       if (patch.passwordHash !== undefined) row.passwordHash = patch.passwordHash;
       if (patch.mustChangePassword !== undefined) row.mustChangePassword = patch.mustChangePassword;
+      if (patch.countries !== undefined) row.countries = normalizeCountries(patch.countries);
       if (patch.bumpSession) row.sessionVersion++;
       if (patch.touchLogin) row.lastLoginAt = new Date().toISOString();
       return publicUser(row);
@@ -192,6 +215,7 @@ interface DbRow {
   role: Role;
   active: boolean;
   must_change_password: boolean;
+  countries: string | null;
   session_version: number;
   created_at: string | Date;
   last_login_at: string | Date | null;
@@ -207,6 +231,7 @@ function fromDb(r: DbRow): UserWithHash {
     role: r.role,
     active: r.active,
     mustChangePassword: r.must_change_password,
+    countries: parseCountries(r.countries),
     sessionVersion: Number(r.session_version),
     createdAt: iso(r.created_at)!,
     lastLoginAt: iso(r.last_login_at),
@@ -235,10 +260,13 @@ export function createPostgresStore(url: string): UserStore {
         session_version INTEGER NOT NULL DEFAULT 1,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         last_login_at TIMESTAMPTZ
-      )`.catch((err) => {
-      ready = null;
-      throw err;
-    }));
+      )`
+      // Columna agregada después: países permitidos (JSON, '[]' = todos).
+      .then(() => sql`ALTER TABLE gestor_users ADD COLUMN IF NOT EXISTS countries TEXT NOT NULL DEFAULT '[]'`)
+      .catch((err) => {
+        ready = null;
+        throw err;
+      }));
 
   return {
     async count() {
@@ -265,8 +293,9 @@ export function createPostgresStore(url: string): UserStore {
       await init();
       try {
         const rows = (await sql`
-          INSERT INTO gestor_users (email, name, password_hash, role, must_change_password)
-          VALUES (${normalizeEmail(u.email)}, ${u.name}, ${u.passwordHash}, ${u.role}, ${u.mustChangePassword})
+          INSERT INTO gestor_users (email, name, password_hash, role, must_change_password, countries)
+          VALUES (${normalizeEmail(u.email)}, ${u.name}, ${u.passwordHash}, ${u.role}, ${u.mustChangePassword},
+                  ${JSON.stringify(normalizeCountries(u.countries))})
           RETURNING *`) as DbRow[];
         return publicUser(fromDb(rows[0]));
       } catch (err) {
@@ -283,6 +312,7 @@ export function createPostgresStore(url: string): UserStore {
           active = COALESCE(${patch.active ?? null}, active),
           password_hash = COALESCE(${patch.passwordHash ?? null}, password_hash),
           must_change_password = COALESCE(${patch.mustChangePassword ?? null}, must_change_password),
+          countries = COALESCE(${patch.countries === undefined ? null : JSON.stringify(normalizeCountries(patch.countries))}, countries),
           session_version = session_version + ${patch.bumpSession ? 1 : 0},
           last_login_at = CASE WHEN ${patch.touchLogin === true} THEN NOW() ELSE last_login_at END
         WHERE id = ${id}
