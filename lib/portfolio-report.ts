@@ -142,6 +142,19 @@ export interface MonthlySeries {
   pendingPriorYears: number;
 }
 
+export interface MonthClosure {
+  /** Programados para cerrar en el mes (fecha de entrega en el mes). */
+  planned: number;
+  /** De los programados, cerrados a más tardar el último día del mes. */
+  plannedClosed: number;
+  /** % de cumplimiento (plannedClosed / planned). null si no hubo programados. */
+  pct: number | null;
+  /** Programados que no se cerraron en el mes (siguen abiertos o cerraron después). */
+  plannedNotClosed: ReportProject[];
+  /** Cerrados en el mes que no estaban programados para el mes. */
+  closedUnplanned: number;
+}
+
 export interface CountryRow {
   country: string;
   total: number;
@@ -175,6 +188,12 @@ export interface PortfolioReport {
   byCountry: CountryRow[];
   /** Días con 4 o más cierres (posible cierre en bloque / depuración). */
   bulkClosures: { date: string; count: number }[];
+  /**
+   * Cierre del mes: proyectos programados para cerrar en el mes (fecha de
+   * entrega en el mes, sin descartados) contra los que se cerraron a más
+   * tardar el último día del mes.
+   */
+  monthClosure: MonthClosure;
   /** Series mensuales del año del informe, para las gráficas. */
   monthly: MonthlySeries;
   summary: {
@@ -461,6 +480,23 @@ export function buildPortfolioReport(
   for (const p of [...finished, ...finishedOther]) {
     if (p.completedOn) perDay.set(p.completedOn, (perDay.get(p.completedOn) ?? 0) + 1);
   }
+  // Cierre del mes: programados (entrega en el mes) vs cerrados a fin de mes.
+  const lastDay = monthEnd(month);
+  const plannedList = [...finished, ...finishedOther, ...pending].filter((p) =>
+    p.dueOn?.startsWith(`${month}-`)
+  );
+  const isClosedByMonthEnd = (p: ReportProject) => !!p.completedOn && p.completedOn <= lastDay;
+  const plannedClosed = plannedList.filter(isClosedByMonthEnd).length;
+  const monthClosure: MonthClosure = {
+    planned: plannedList.length,
+    plannedClosed,
+    pct: plannedList.length ? Math.round((plannedClosed / plannedList.length) * 100) : null,
+    plannedNotClosed: plannedList
+      .filter((p) => !isClosedByMonthEnd(p))
+      .sort((a, b) => (a.dueOn ?? "").localeCompare(b.dueOn ?? "") || a.name.localeCompare(b.name)),
+    closedUnplanned: finished.filter((p) => !p.dueOn?.startsWith(`${month}-`)).length,
+  };
+
   const year = Number(month.slice(0, 4));
   const finishedAll = [...finished, ...finishedOther];
   let fCum = 0;
@@ -509,6 +545,7 @@ export function buildPortfolioReport(
     ),
     byCountry,
     bulkClosures,
+    monthClosure,
     monthly,
     summary: {
       total:
@@ -544,6 +581,12 @@ export function reportToPlainText(r: PortfolioReport): string {
     `Resumen: ${s.finished} finalizado(s) en ${r.monthLabel} (${s.finishedOnTime} a tiempo, ${s.finishedLate} con retraso) · ` +
       `${s.pending} pendiente(s), ${s.overdue} vencido(s), ${s.offTrack} fuera de curso` +
       (s.discarded ? ` · ${s.discarded} descartado(s) en el mes.` : ".")
+  );
+  const mc = r.monthClosure;
+  lines.push(
+    mc.planned
+      ? `Cierre del mes: ${mc.plannedClosed} de ${mc.planned} proyectos programados para ${r.monthLabel} (${mc.pct}%).`
+      : `Cierre del mes: no había proyectos programados para ${r.monthLabel}.`
   );
   lines.push("");
   lines.push(`FINALIZADOS EN ${r.monthLabel.toUpperCase()}`);

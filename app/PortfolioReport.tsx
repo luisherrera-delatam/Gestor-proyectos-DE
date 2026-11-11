@@ -49,6 +49,77 @@ function StatusBadge({ p }: { p: ReportProject }) {
   );
 }
 
+/** Indicador: proyectos programados para cerrar en el mes vs cerrados a fin de mes. */
+function MonthClosureCard({ report }: { report: Report }) {
+  const c = report.monthClosure;
+  const mes = report.monthLabel;
+  const tone =
+    c.pct == null
+      ? { text: "text-dxgray dark:text-gray-400", bar: "bg-gray-400", label: "Sin programados" }
+      : c.pct >= 80
+        ? { text: "text-green-700 dark:text-green-400", bar: "bg-green-500", label: "Cumple" }
+        : c.pct >= 50
+          ? { text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500", label: "En riesgo" }
+          : { text: "text-red-600 dark:text-red-400", bar: "bg-red-500", label: "No cumple" };
+  const closedProgrammed = report.summary.finished - c.closedUnplanned;
+  return (
+    <div className="rounded-md border border-gray-200/70 bg-white p-3 dark:border-gray-700 dark:bg-[#23272f]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-wider text-dxgray dark:text-gray-400">
+            Cierre del mes · {mes}
+          </p>
+          <p className="text-lg font-semibold text-dxnavy dark:text-gray-100">
+            {c.plannedClosed} de {c.planned}{" "}
+            <span className="text-sm font-normal text-dxgray dark:text-gray-400">
+              {c.planned === 1 ? "proyecto programado cerrado" : "proyectos programados cerrados"}
+            </span>
+          </p>
+          <p className="text-[11px] text-dxgray dark:text-gray-400">
+            Programados: fecha de entrega en {mes}. Cerrados: finalizados a más tardar el último día
+            del mes.
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className={`text-2xl font-bold tabular-nums ${tone.text}`}>
+            {c.pct == null ? "—" : `${c.pct}%`}
+          </p>
+          <p className={`text-[11px] font-medium ${tone.text}`}>{tone.label}</p>
+        </div>
+      </div>
+      {c.planned > 0 && (
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+          <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${c.pct ?? 0}%` }} />
+        </div>
+      )}
+      <p className="mt-2 text-[11px] text-dxgray dark:text-gray-400">
+        {report.summary.finished}{" "}
+        {report.summary.finished === 1 ? "proyecto cerrado" : "proyectos cerrados"} en {mes}:{" "}
+        {closedProgrammed} programado{closedProgrammed === 1 ? "" : "s"} para el mes y{" "}
+        {c.closedUnplanned} de otros meses.
+      </p>
+      {c.plannedNotClosed.length > 0 && (
+        <details className="mt-1.5 text-[11px]">
+          <summary className="cursor-pointer text-dxnavy dark:text-dxblue">
+            Programados sin cerrar en el mes ({c.plannedNotClosed.length})
+          </summary>
+          <ul className="mt-1 space-y-0.5 text-dxgray dark:text-gray-400">
+            {c.plannedNotClosed.map((p) => (
+              <li key={p.gid} className="flex flex-wrap gap-x-2">
+                <span className="font-medium text-dxnavy dark:text-gray-200">{p.name}</span>
+                <span>entrega {shortDate(p.dueOn)}</span>
+                <span>
+                  {p.completedOn ? `cerrado el ${shortDate(p.completedOn)}` : "sigue abierto"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function Stat({ value, label, tone }: { value: number; label: string; tone: string }) {
   return (
     <div className="rounded-md bg-white dark:bg-[#23272f] py-2 text-center">
@@ -293,6 +364,8 @@ export default function PortfolioReport({
               tone="text-amber-600 dark:text-amber-400"
             />
           </div>
+
+          <MonthClosureCard report={report} />
 
           <OpenByCountryChart rows={report.byCountry} cut={shortDate(report.generatedOn)} />
 

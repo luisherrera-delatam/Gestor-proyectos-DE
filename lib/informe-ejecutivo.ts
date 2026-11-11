@@ -647,6 +647,22 @@ function indicatorRows(c: Ctx): string[][] {
           ? "Sin cierres con retraso."
           : "",
     ],
+    (() => {
+      const mc = c.r.monthClosure;
+      return [
+        `Cierre de proyectos programados en ${c.mes}`,
+        META,
+        mc.planned ? `${mc.plannedClosed} de ${mc.planned} (${mc.pct}%)` : "Sin programados",
+        mc.pct == null ? "—" : mc.pct >= 80 ? "Cumple" : mc.pct >= 50 ? "En riesgo" : "No cumple",
+        mc.planned
+          ? `Programados: entrega en ${c.mes}.${
+              mc.plannedNotClosed.length
+                ? ` Sin cerrar: ${codes(mc.plannedNotClosed)}.`
+                : " Todos cerraron en el mes."
+            }${mc.closedUnplanned ? ` Además cerraron ${mc.closedUnplanned} de otros meses.` : ""}`
+          : "",
+      ];
+    })(),
     [
       "Proyectos abiertos vencidos",
       META,

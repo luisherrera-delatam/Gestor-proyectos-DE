@@ -176,7 +176,8 @@ describe("buildPortfolioReportExcel", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await wb.xlsx.load(buffer as any);
     expect(wb.worksheets.map((w) => w.name)).toEqual(["Resumen", "Finalizados", "Pendientes", "Descartados"]);
-    expect(wb.getWorksheet("Resumen")!.getCell("B4").value).toBe(3);
+    expect(wb.getWorksheet("Resumen")!.getCell("B4").value).toBe(2); // programados en octubre
+    expect(wb.getWorksheet("Resumen")!.getCell("B7").value).toBe(3); // finalizados en octubre
     expect(wb.getWorksheet("Pendientes")!.getCell("G4").value).toBe("VENCIDO");
   });
 
@@ -370,5 +371,42 @@ describe("avance y descartados completos", () => {
     });
     expect(r.discardedAll.map((p) => p.gid)).toEqual(["92", "91"]);
     expect(r.discarded.map((p) => p.gid)).toEqual(["92"]);
+  });
+});
+
+describe("cierre del mes (programados vs cerrados)", () => {
+  it("compara los programados para el mes con los cerrados a fin de mes", () => {
+    const extra = [
+      // Entrega en octubre, cerrado en noviembre → no cuenta como cerrado en el mes.
+      proj({ gid: "x1", name: "MX-26-DS-090: TARDE", due_on: "2026-10-10", completed: true, completed_at: "2026-11-03T18:00:00Z" }),
+      // Entrega en octubre y sigue abierto.
+      proj({ gid: "x2", name: "MX-26-DS-091: ABIERTO", due_on: "2026-10-20" }),
+      // Entrega en octubre, cerrado antes (septiembre) → sí cuenta.
+      proj({ gid: "x3", name: "MX-26-DS-092: ANTES", due_on: "2026-10-30", completed: true, completed_at: "2026-09-25T18:00:00Z" }),
+      // Entrega en octubre pero descartado → no es programado.
+      proj({
+        gid: "x4",
+        name: "MX-26-DS-093: DESCARTADO",
+        due_on: "2026-10-15",
+        completed: true,
+        completed_at: "2026-10-12T18:00:00Z",
+        current_status_update: { status_type: "dropped" },
+      }),
+    ];
+    const r = buildPortfolioReport("X", [...PROJECTS, ...extra], { now: NOW });
+    const mc = r.monthClosure;
+    // Programados: gid 1 y 2 (del fixture) + x1, x2, x3 = 5; cerrados: 1, 2 y x3 = 3.
+    expect(mc.planned).toBe(5);
+    expect(mc.plannedClosed).toBe(3);
+    expect(mc.pct).toBe(60);
+    expect(mc.plannedNotClosed.map((p) => p.gid)).toEqual(["x1", "x2"]);
+    // Cerrados en octubre sin entrega en octubre: gid 3 (sin fecha).
+    expect(mc.closedUnplanned).toBe(1);
+  });
+
+  it("sin programados el % es null", () => {
+    const r = buildPortfolioReport("X", PROJECTS, { now: NOW, month: "2026-08" });
+    expect(r.monthClosure.planned).toBe(0);
+    expect(r.monthClosure.pct).toBeNull();
   });
 });

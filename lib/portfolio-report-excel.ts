@@ -87,7 +87,10 @@ export async function buildPortfolioReportExcel(
   sum.columns = [{ width: 46 }, { width: 14 }];
   addTitle(sum, "B", `${opts.title || "Informe de portafolio"} — ${report.monthLabel}`, subtitle);
   addHeader(sum, 3, ["Indicador", "Cantidad"]);
-  const rows: [string, number][] = [
+  const rows: [string, number | string][] = [
+    [`Programados para cerrar en ${report.monthLabel}`, report.monthClosure.planned],
+    ["   · Cerrados a fin de mes", report.monthClosure.plannedClosed],
+    ["   · % de cumplimiento", report.monthClosure.pct == null ? "—" : report.monthClosure.pct / 100],
     [`Proyectos finalizados en ${report.monthLabel}`, s.finished],
     ["   · Cerrados a tiempo", s.finishedOnTime],
     ["   · Cerrados con retraso", s.finishedLate],
@@ -105,6 +108,7 @@ export async function buildPortfolioReportExcel(
     row.getCell(2).value = value;
     styleDataRow(row, 2, i % 2 === 0 ? SOFT : WHITE);
     row.getCell(2).alignment = { vertical: "middle", horizontal: "center" };
+    if (label.includes("%") && typeof value === "number") row.getCell(2).numFmt = "0%";
     if (!label.startsWith(" ")) row.getCell(1).font = { name: "Calibri", size: 10, bold: true, color: { argb: TEXT } };
   });
 
