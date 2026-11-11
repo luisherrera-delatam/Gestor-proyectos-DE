@@ -27,6 +27,8 @@ interface Props {
   storageKey: string;
   /** Número de paso que se muestra junto al título. */
   step: number;
+  /** El usuario puede descargar el Gantt de cada proyecto (no "Solo vista"). */
+  canGantt?: boolean;
 }
 
 type Format = "json" | "xlsx" | "docx";
@@ -132,12 +134,13 @@ function Stat({ value, label, tone }: { value: number; label: string; tone: stri
 interface ProjectNameProps {
   p: ReportProject;
   auth: AuthProps;
+  canGantt?: boolean;
   onDone?: (message: string) => void;
   onError?: (message: string) => void;
 }
 
 /** Nombre del proyecto (enlace a Asana) con el ícono para descargar su Gantt. */
-function ProjectName({ p, auth, onDone, onError }: ProjectNameProps) {
+function ProjectName({ p, auth, onDone, onError, canGantt = true }: ProjectNameProps) {
   return (
     <span className="flex min-w-0 items-start gap-1.5">
       <a
@@ -148,7 +151,7 @@ function ProjectName({ p, auth, onDone, onError }: ProjectNameProps) {
       >
         {p.name}
       </a>
-      <GanttButton gid={p.gid} name={p.name} auth={auth} onDone={onDone} onError={onError} />
+      {canGantt && <GanttButton gid={p.gid} name={p.name} auth={auth} onDone={onDone} onError={onError} />}
     </span>
   );
 }
@@ -161,6 +164,7 @@ export default function PortfolioReport({
   defaultPortfolioUrl,
   storageKey,
   step,
+  canGantt = true,
 }: Props) {
   const [portfolio, setPortfolio] = useState(defaultPortfolioUrl);
   const [month, setMonth] = useState("");
@@ -255,7 +259,7 @@ export default function PortfolioReport({
   }
 
   const s = report?.summary;
-  const nameProps = { auth: { connected, token }, onDone, onError: setError };
+  const nameProps = { auth: { connected, token }, onDone, onError: setError, canGantt };
   const canRun = portfolio.trim().length > 0 && month.length > 0 && loading === null;
 
   return (

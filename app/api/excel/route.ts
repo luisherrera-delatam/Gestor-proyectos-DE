@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchPortfolioProjectLists } from "@/lib/portfolio-projects";
-import { AuthError, applyRefreshedCookie, resolveAuth } from "@/lib/asana-auth";
+import { applyRefreshedCookie } from "@/lib/asana-auth";
+import { resolveAccess } from "@/lib/access";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import { detectCountry } from "@/lib/countries";
 import { buildCountryExcel, type ExcelProjectRow } from "@/lib/excel";
@@ -21,13 +22,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Falta el país." }, { status: 400 });
   }
 
-  let auth;
-  try {
-    auth = await resolveAuth(req, body.token);
-  } catch (err) {
-    const message = err instanceof AuthError ? err.message : "No autorizado.";
-    return NextResponse.json({ error: message }, { status: 401 });
-  }
+  // Sesión del gestor + permiso "view"; con control de acceso usa la conexión central de Asana.
+  const access = await resolveAccess(req, body.token, "view");
+  if (!access.ok) return access.response;
+  const auth = access.auth;
 
   try {
     const workspaces = await fetchPortfolioProjectLists(auth.token);

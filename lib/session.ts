@@ -34,18 +34,17 @@ function getKey(): Buffer {
   return crypto.createHash("sha256").update(secret).digest(); // 32 bytes
 }
 
-export function encryptSession(session: Session): string {
+/** Cifra cualquier objeto JSON (AES-256-GCM) para guardarlo en una cookie. */
+export function sealJson(value: unknown): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(ALG, getKey(), iv);
-  const data = Buffer.concat([
-    cipher.update(JSON.stringify(session), "utf8"),
-    cipher.final(),
-  ]);
+  const data = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([iv, tag, data]).toString("base64url");
 }
 
-export function decryptSession(value: string | undefined | null): Session | null {
+/** Descifra lo que produjo sealJson. null si falta, está alterado o la clave cambió. */
+export function unsealJson<T>(value: string | undefined | null): T | null {
   if (!value) return null;
   try {
     const buf = Buffer.from(value, "base64url");
@@ -55,10 +54,18 @@ export function decryptSession(value: string | undefined | null): Session | null
     const decipher = crypto.createDecipheriv(ALG, getKey(), iv);
     decipher.setAuthTag(tag);
     const out = Buffer.concat([decipher.update(data), decipher.final()]);
-    return JSON.parse(out.toString("utf8")) as Session;
+    return JSON.parse(out.toString("utf8")) as T;
   } catch {
     return null;
   }
+}
+
+export function encryptSession(session: Session): string {
+  return sealJson(session);
+}
+
+export function decryptSession(value: string | undefined | null): Session | null {
+  return unsealJson<Session>(value);
 }
 
 export function sessionCookieOptions() {

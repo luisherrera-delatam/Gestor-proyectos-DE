@@ -8,6 +8,9 @@ import CountryDashboard from "./CountryDashboard";
 import PortfolioReport from "./PortfolioReport";
 import DiscardedProjects from "./DiscardedProjects";
 import { DEFAULT_PORTFOLIO_URL, IMPLEMENTATIONS_PORTFOLIO_URL } from "@/lib/portfolio-report";
+import AccessGate, { ChangePasswordForm, type Access } from "./AccessGate";
+import UsersAdmin, { RoleBadge } from "./UsersAdmin";
+import { can } from "@/lib/roles";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
 
@@ -201,7 +204,17 @@ function CheckCircleIcon({ className }: { className?: string }) {
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
 
-export default function Home() {
+export default function Page() {
+  return <AccessGate>{(access) => <Home access={access} />}</AccessGate>;
+}
+
+function Home({ access }: { access: Access }) {
+  const [showUsers, setShowUsers] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const user = access.user;
+  // Sin control de acceso (sin base de datos) todos pueden generar, como antes.
+  const canGenerate = !access.enabled || (user ? can(user.role, "generate") : false);
+  const isAdmin = access.enabled && user?.role === "admin";
   const [token, setToken] = useState("");
   const [projectUrl, setProjectUrl] = useState("");
   const [sponsor, setSponsor] = useState("");
@@ -225,7 +238,8 @@ export default function Home() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedProjectGid, setSelectedProjectGid] = useState("");
 
-  const connected = authStatus?.connected === true;
+  // Con control de acceso, los datos salen de la conexión central del servidor.
+  const connected = access.enabled || authStatus?.connected === true;
   const oauthConfigured = authStatus?.configured === true;
 
   // Sync the toggle with the class applied by the anti-flash script in layout.tsx.
@@ -572,11 +586,47 @@ export default function Home() {
                 Generador de documentos del proyecto
               </h1>
             </div>
+            {access.enabled && user && (
+              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <div className="hidden text-right sm:block">
+                  <p className="text-sm font-medium leading-tight text-dxnavy dark:text-gray-100">{user.name}</p>
+                  <p className="text-[11px] text-dxgray dark:text-gray-400">{user.email}</p>
+                </div>
+                <RoleBadge role={user.role} />
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUsers((v) => !v)}
+                    className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
+                      showUsers
+                        ? "border-dxnavy bg-dxnavy text-white dark:border-dxblue dark:bg-dxblue dark:text-gray-900"
+                        : "border-gray-300 bg-white text-dxnavy hover:bg-gray-100 dark:border-gray-600 dark:bg-[#262b33] dark:text-gray-200 dark:hover:bg-[#2e343d]"
+                    }`}
+                  >
+                    Usuarios
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(true)}
+                  className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-dxnavy hover:bg-gray-100 dark:border-gray-600 dark:bg-[#262b33] dark:text-gray-200 dark:hover:bg-[#2e343d]"
+                >
+                  Contraseña
+                </button>
+                <button
+                  type="button"
+                  onClick={access.logout}
+                  className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-dxnavy hover:border-red-300 hover:text-red-600 dark:border-gray-600 dark:bg-[#262b33] dark:text-gray-200 dark:hover:text-red-400"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onClick={toggleTheme}
               title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo noche"}
-              className="ml-auto shrink-0 h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-dxnavy dark:text-gray-200 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition"
+              className={`${access.enabled && user ? "" : "ml-auto "}shrink-0 h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#262b33] text-dxnavy dark:text-gray-200 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-[#2e343d] transition`}
             >
               {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
@@ -589,6 +639,31 @@ export default function Home() {
           </p>
         </header>
 
+        {isAdmin && showUsers && user && (
+          <UsersAdmin meId={user.id} onClose={() => setShowUsers(false)} />
+        )}
+
+        {showPassword && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Cambiar contraseña"
+          >
+            <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-[#23272f]">
+              <h2 className="mb-3 text-base font-semibold text-dxnavy dark:text-gray-100">Cambiar contraseña</h2>
+              <ChangePasswordForm
+                onCancel={() => setShowPassword(false)}
+                onDone={async () => {
+                  setShowPassword(false);
+                  setToast("Contraseña actualizada");
+                  await access.refresh();
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 shadow-sm space-y-5 fade-up fade-up-1"
@@ -600,7 +675,21 @@ export default function Home() {
               Conexión con Asana
             </p>
 
-            {connected ? (
+            {access.enabled ? (
+              access.centralAsana ? (
+                <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300">
+                  <span className="inline-block h-2 w-2 rounded-full bg-green-600" />
+                  Conectado a Asana con la conexión central del gestor
+                  {user ? ` · sesión de ${user.name}` : ""}
+                </div>
+              ) : (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                  Falta la conexión central de Asana. {isAdmin
+                    ? "Agrega la variable ASANA_ACCESS_TOKEN (tu token personal de Asana) en Vercel y vuelve a desplegar."
+                    : "Pide al administrador que la configure."}
+                </div>
+              )
+            ) : connected ? (
               <div className="flex items-center justify-between rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 px-3 py-2">
                 <span className="text-sm text-green-800 dark:text-green-300 flex items-center gap-2">
                   <span className="inline-block h-2 w-2 rounded-full bg-green-600" />
@@ -994,7 +1083,7 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="submit"
-                disabled={busy || !formValid}
+                disabled={busy || !formValid || !canGenerate}
                 className="flex items-center justify-center gap-2 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <DocIcon className="h-4 w-4 shrink-0" />
@@ -1004,7 +1093,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => generate("acta")}
-                disabled={busy || !formValid}
+                disabled={busy || !formValid || !canGenerate}
                 className="flex items-center justify-center gap-2 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <DocIcon className="h-4 w-4 shrink-0" />
@@ -1014,7 +1103,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => generate("gantt")}
-                disabled={busy || !formValid}
+                disabled={busy || !formValid || !canGenerate}
                 className="flex items-center justify-center gap-2 bg-white dark:bg-transparent border border-dxnavy dark:border-dxblue text-dxnavy dark:text-dxblue font-medium py-2.5 rounded-md hover:bg-dxnavy hover:text-white dark:hover:bg-dxblue dark:hover:text-gray-900 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <ChartIcon className="h-4 w-4 shrink-0" />
@@ -1025,7 +1114,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => generate("zip")}
-              disabled={busy || !formValid}
+              disabled={busy || !formValid || !canGenerate}
               className="mt-3 w-full flex items-center justify-center gap-2 border border-dashed border-dxnavy/50 dark:border-dxblue/50 text-dxnavy dark:text-dxblue font-medium py-2 rounded-md hover:bg-dxnavy/5 dark:hover:bg-dxblue/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loadingAction === "zip" && <Spinner className="h-4 w-4 animate-spin" />}
@@ -1034,7 +1123,13 @@ export default function Home() {
                 : "Descargar los 3 documentos (ZIP)"}
             </button>
 
-            {!formValid && (
+            {!canGenerate && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+                Tu permiso es <strong>Solo vista</strong>: puedes ver los proyectos y descargar los
+                informes, pero no generar Actas, Gantt ni ZIP.
+              </p>
+            )}
+            {canGenerate && !formValid && (
               <p className="text-xs text-dxgray dark:text-gray-400 mt-2">
                 {hasAuth
                   ? "Elige un proyecto para habilitar la generación."
@@ -1057,6 +1152,7 @@ export default function Home() {
               defaultPortfolioUrl={DEFAULT_PORTFOLIO_URL}
               storageKey="asanaweb.report_portfolio.v1"
               step={4}
+              canGantt={canGenerate}
             />
             <PortfolioReport
               connected={connected}
@@ -1066,6 +1162,7 @@ export default function Home() {
               defaultPortfolioUrl={IMPLEMENTATIONS_PORTFOLIO_URL}
               storageKey="asanaweb.report_portfolio_imp.v1"
               step={5}
+              canGantt={canGenerate}
             />
             </div>
             <DiscardedProjects
@@ -1073,6 +1170,7 @@ export default function Home() {
               token={token}
               onDone={setToast}
               step={6}
+              canGantt={canGenerate}
               sources={[
                 {
                   label: "Desarrollo",

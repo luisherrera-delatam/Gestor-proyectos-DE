@@ -109,3 +109,45 @@ Si prefieres que Vercel detecte el repo automáticamente y haga deploys sin pasa
 3. En ese caso, edita `.github/workflows/ci.yml` y borra los jobs `deploy-preview` y `deploy-production` — deja solo `verify`.
 
 La ventaja del workflow actual es que los deploys quedan **gated por los tests** (Vercel auto-deploy no espera a tus tests).
+
+## Control de acceso (usuarios y permisos)
+
+El gestor puede exigir inicio de sesión con usuario y contraseña. Se activa en
+cuanto existe la variable `DATABASE_URL` (o `POSTGRES_URL`); sin ella todo
+funciona como antes.
+
+### Permisos
+
+| Permiso | Qué puede hacer |
+|---|---|
+| **Administrador** | Todo, y además crea usuarios, cambia permisos, restablece contraseñas, desactiva y elimina usuarios. |
+| **Acceso a proyectos** | Ve todo, descarga informes y genera Actas de Inicio/Cierre, Gantt y ZIP. |
+| **Solo vista** | Ve todo y descarga informes (Excel y Word de portafolio, Excel por país). No genera Actas, Gantt ni ZIP. |
+
+Los permisos se validan en el servidor (cada ruta de `/api`), no solo en la
+pantalla.
+
+### Configuración (una sola vez)
+
+1. **Base de datos**: Vercel → proyecto → **Storage** → **Create Database** →
+   **Neon** → conectar al proyecto (entornos Production y Preview). Esto crea
+   `DATABASE_URL`. La tabla `gestor_users` se crea sola la primera vez.
+2. **Variables** en Vercel → **Settings → Environment Variables**:
+   - `ASANA_ACCESS_TOKEN`: token personal de Asana del administrador
+     (https://app.asana.com/0/my-apps). Con él se leen los portafolios.
+   - `ADMIN_EMAIL` y `ADMIN_PASSWORD`: datos del primer administrador.
+   - `SESSION_SECRET`: si no existe, créalo
+     (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+3. **Redeploy** (Deployments → ⋯ → Redeploy).
+4. Entra con `ADMIN_EMAIL` / `ADMIN_PASSWORD`, cambia la contraseña y crea los
+   usuarios desde el botón **Usuarios**. Cada usuario recibe una contraseña
+   temporal que cambia en su primer ingreso.
+
+### Seguridad
+
+- Contraseñas con hash scrypt y sal aleatoria; nunca se guardan en claro.
+- Sesión en cookie httpOnly cifrada (AES-256-GCM), válida 12 horas.
+- Cambiar contraseña, desactivar o cambiar el permiso de un usuario cierra sus
+  sesiones abiertas.
+- El administrador no puede quitarse su propio acceso y siempre queda al menos
+  un administrador activo.

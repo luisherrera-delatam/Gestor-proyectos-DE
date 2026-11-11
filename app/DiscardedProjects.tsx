@@ -18,6 +18,8 @@ interface Props {
   step: number;
   sources: PortfolioSource[];
   onDone?: (message: string) => void;
+  /** El usuario puede descargar el Gantt (no "Solo vista"). */
+  canGantt?: boolean;
 }
 
 interface Row extends ReportProject {
@@ -33,7 +35,7 @@ function portfolioUrl(src: PortfolioSource): string {
 }
 
 /** Proyectos descartados (estatus "Descartado" en Asana) de todos los portafolios. */
-export default function DiscardedProjects({ connected, token, step, sources, onDone }: Props) {
+export default function DiscardedProjects({ connected, token, step, sources, onDone, canGantt = true }: Props) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<string>("Todos");
@@ -154,13 +156,15 @@ export default function DiscardedProjects({ connected, token, step, sources, onD
                       >
                         {p.name}
                       </a>
-                      <GanttButton
-                        gid={p.gid}
-                        name={p.name}
-                        auth={{ connected, token }}
-                        onDone={onDone}
-                        onError={(m) => setErrors([m])}
-                      />
+                      {canGantt && (
+                        <GanttButton
+                          gid={p.gid}
+                          name={p.name}
+                          auth={{ connected, token }}
+                          onDone={onDone}
+                          onError={(m) => setErrors([m])}
+                        />
+                      )}
                     </span>
                     <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
                       <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">

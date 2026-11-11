@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchProjectData, resolveProjectGid } from "@/lib/asana";
-import { AuthError, applyRefreshedCookie, resolveAuth } from "@/lib/asana-auth";
+import { applyRefreshedCookie } from "@/lib/asana-auth";
+import { resolveAccess } from "@/lib/access";
 import { sanitizeFilename } from "@/lib/docx-builder";
 import { buildProjectBundle } from "@/lib/bundle";
 
@@ -27,13 +28,10 @@ export async function POST(req: NextRequest) {
   const contactoCliente = (body.contactoCliente || "").trim();
   const lecciones = (body.lecciones || "").trim();
 
-  let auth;
-  try {
-    auth = await resolveAuth(req, body.token);
-  } catch (err) {
-    const message = err instanceof AuthError ? err.message : "No autorizado.";
-    return NextResponse.json({ error: message }, { status: 401 });
-  }
+  // Sesión del gestor + permiso "generate"; con control de acceso usa la conexión central de Asana.
+  const access = await resolveAccess(req, body.token, "generate");
+  if (!access.ok) return access.response;
+  const auth = access.auth;
 
   const projectGid = resolveProjectGid(body);
   if (!projectGid) {
