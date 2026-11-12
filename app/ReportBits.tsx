@@ -8,11 +8,14 @@ export function SectionHeader({
   title,
   children,
   icon,
+  action,
 }: {
   step: number;
   title: string;
   children?: React.ReactNode;
   icon?: React.ReactNode;
+  /** Botón a la derecha del título (p. ej. Actualizar). */
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -26,7 +29,65 @@ export function SectionHeader({
         </h2>
         {children && <p className="mt-0.5 text-sm text-dxgray dark:text-gray-400">{children}</p>}
       </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
+  );
+}
+
+/** "6:14 p. m." */
+function clock(d: Date): string {
+  return d.toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * Botón "Actualizar": vuelve a leer Asana sin salir del gestor. Muestra la
+ * hora de la última actualización.
+ */
+export function RefreshButton({
+  onClick,
+  loading,
+  disabled,
+  updatedAt,
+  label = "Actualizar",
+  title = "Volver a consultar Asana",
+}: {
+  onClick: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+  updatedAt?: Date | null;
+  label?: string;
+  title?: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      {updatedAt && !loading && (
+        <span className="hidden text-[11px] text-dxgray dark:text-gray-400 sm:inline">{clock(updatedAt)}</span>
+      )}
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled || loading}
+        title={updatedAt ? `${title} · última actualización ${clock(updatedAt)}` : title}
+        className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-dxnavy transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-[#262b33] dark:text-gray-200 dark:hover:bg-[#2e343d]"
+      >
+        <svg
+          className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+          <path d="M3 21v-5h5" />
+        </svg>
+        {loading ? "Actualizando…" : label}
+      </button>
+    </span>
   );
 }
 

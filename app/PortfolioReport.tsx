@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import OpenByCountryChart from "./OpenByCountryChart";
-import { GanttButton, Icon, ProgressInline, SectionHeader, type AuthProps } from "./ReportBits";
+import { GanttButton, Icon, ProgressInline, RefreshButton, SectionHeader, type AuthProps } from "./ReportBits";
 import {
   previousMonth,
   reportToPlainText,
@@ -29,6 +29,8 @@ interface Props {
   step: number;
   /** El usuario puede descargar el Gantt de cada proyecto (no "Solo vista"). */
   canGantt?: boolean;
+  /** Cambia con "Actualizar todo" del encabezado. */
+  refreshTick?: number;
 }
 
 type Format = "json" | "xlsx" | "docx";
@@ -165,12 +167,14 @@ export default function PortfolioReport({
   storageKey,
   step,
   canGantt = true,
+  refreshTick = 0,
 }: Props) {
   const [portfolio, setPortfolio] = useState(defaultPortfolioUrl);
   const [month, setMonth] = useState("");
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState<Format | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   // El mes por defecto depende del reloj del navegador y el portafolio guardado
   // vive en localStorage: ambos solo se pueden leer ya montados.
@@ -213,6 +217,7 @@ export default function PortfolioReport({
       if (format === "json") {
         const data = (await res.json()) as { report: Report };
         setReport(data.report);
+        setUpdatedAt(new Date());
         return;
       }
 
@@ -262,9 +267,29 @@ export default function PortfolioReport({
   const nameProps = { auth: { connected, token }, onDone, onError: setError, canGantt };
   const canRun = portfolio.trim().length > 0 && month.length > 0 && loading === null;
 
+  // "Actualizar todo" del encabezado: vuelve a generar el informe si ya está en pantalla.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshTick > 0 && report) run("json");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
+
   return (
     <section className="bg-white dark:bg-[#23272f] border border-gray-200 dark:border-gray-700 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4 fade-up fade-up-2">
-      <SectionHeader step={step} title={title} icon={<Icon name="folder" className="h-4 w-4 text-dxgray dark:text-gray-400" />}>
+      <SectionHeader
+        step={step}
+        title={title}
+        icon={<Icon name="folder" className="h-4 w-4 text-dxgray dark:text-gray-400" />}
+        action={
+          <RefreshButton
+            onClick={() => run("json")}
+            loading={loading === "json"}
+            disabled={!canRun}
+            updatedAt={updatedAt}
+            title="Volver a generar el informe con los datos actuales de Asana"
+          />
+        }
+      >
         Proyectos finalizados en el mes elegido y proyectos que siguen pendientes, de todos los
         subportafolios.
       </SectionHeader>

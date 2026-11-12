@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChangePasswordForm, type Access } from "./AccessGate";
 import InstallApp from "./InstallApp";
+import { RefreshButton } from "./ReportBits";
 import type { ClientProjectView } from "@/lib/client-project";
 
 const THEME_STORAGE_KEY = "asanaweb.theme.v1";
@@ -68,12 +69,16 @@ function ProjectDetail({ gid }: { gid: string }) {
   const [gantt, setGantt] = useState<"idle" | "busy" | "error">("idle");
   const [ganttError, setGanttError] = useState<string | null>(null);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    // Los datos vienen de Asana a través del servidor: se piden al elegir el proyecto.
+    // Los datos vienen de Asana a través del servidor: se piden al elegir el
+    // proyecto y al pulsar "Actualizar" (se mantiene lo anterior mientras carga).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setProject(null);
+    setLoading(true);
     setError(null);
     fetch("/api/client/project", {
       method: "POST",
@@ -84,18 +89,27 @@ function ProjectDetail({ gid }: { gid: string }) {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
-        if (!cancelled) setProject(data.project);
+        if (!cancelled) {
+          setProject(data.project);
+          setUpdatedAt(new Date());
+        }
       })
-      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : "No se pudo cargar el proyecto."));
+      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : "No se pudo cargar el proyecto."))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [gid]);
+  }, [gid, tick]);
 
-  if (error) {
+  const refresh = <RefreshButton onClick={() => setTick((t) => t + 1)} loading={loading} updatedAt={updatedAt} />;
+
+  if (error && !project) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
-        {error}
+      <div className="space-y-3">
+        <div className="flex justify-end">{refresh}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+          {error}
+        </div>
       </div>
     );
   }
@@ -121,6 +135,10 @@ function ProjectDetail({ gid }: { gid: string }) {
 
   return (
     <div className="space-y-4 fade-up">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
+        {refresh}
+      </div>
       {/* Encabezado del proyecto */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-[#23272f]">
         <div className="flex flex-wrap items-start justify-between gap-3">

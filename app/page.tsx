@@ -12,6 +12,7 @@ import AccessGate, { ChangePasswordForm, type Access } from "./AccessGate";
 import UsersAdmin, { RoleBadge } from "./UsersAdmin";
 import InstallApp from "./InstallApp";
 import ClientPortal from "./ClientPortal";
+import { RefreshButton } from "./ReportBits";
 import { can } from "@/lib/roles";
 
 type Action = "inicio" | "acta" | "gantt" | "zip";
@@ -234,6 +235,10 @@ function Home({ access }: { access: Access }) {
   const [tokenRemembered, setTokenRemembered] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [preview, setPreview] = useState<ProjectSummary | null>(null);
+  /** Sube con "Actualizar todo": las secciones con datos en pantalla vuelven a leer Asana. */
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [projectsUpdatedAt, setProjectsUpdatedAt] = useState<Date | null>(null);
+  const [previewUpdatedAt, setPreviewUpdatedAt] = useState<Date | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [excelCountry, setExcelCountry] = useState<string | null>(null);
@@ -368,6 +373,7 @@ function Home({ access }: { access: Access }) {
       }
       const data = (await res.json()) as { workspaces: WorkspaceProjects[] };
       setWorkspaces(data.workspaces);
+      setProjectsUpdatedAt(new Date());
       if (!connected && token.trim()) rememberToken(token.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -391,6 +397,7 @@ function Home({ access }: { access: Access }) {
       }
       const data = (await res.json()) as { summary: ProjectSummary };
       setPreview(data.summary);
+      setPreviewUpdatedAt(new Date());
       if (!connected && token.trim()) rememberToken(token.trim());
     } catch (err) {
       setPreview(null);
@@ -543,6 +550,18 @@ function Home({ access }: { access: Access }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectGid]);
 
+  /** Lista de proyectos (paso 2) y, si hay uno elegido, su vista previa. */
+  async function refreshProjects() {
+    await Promise.all([loadProjects(), preview || selectedProjectGid ? loadPreview() : Promise.resolve()]);
+  }
+
+  /** "Actualizar todo": paso 2, vista previa e informes/descartados que ya estén en pantalla. */
+  function refreshAll() {
+    if (hasAuth) refreshProjects();
+    setRefreshTick((t) => t + 1);
+    setToast("Actualizando con los datos actuales de Asana…");
+  }
+
   // Auto-ocultar el toast de éxito.
   useEffect(() => {
     if (!toast) return;
@@ -559,7 +578,7 @@ function Home({ access }: { access: Access }) {
     <main className="min-h-screen py-8 px-4 sm:px-6 lg:px-10">
       <div className="mx-auto w-full max-w-[1600px]">
         <header className="mb-8 fade-up">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
             {/* Modo claro: logo original (fondo blanco). Modo oscuro: versión con
                 fondo transparente y sin contornos (public/logo_dx_dark.png). */}
             {(["/logo_dx.png", "/logo_dx_dark.png"] as const).map((src) => (
@@ -587,7 +606,7 @@ function Home({ access }: { access: Access }) {
             >
               DX
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1 basis-48">
               <p className="text-xs uppercase tracking-widest text-dxgray dark:text-gray-400">
                 Data Express
               </p>
@@ -596,7 +615,7 @@ function Home({ access }: { access: Access }) {
               </h1>
             </div>
             {access.enabled && user && (
-              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
                 <div className="hidden text-right sm:block">
                   <p className="text-sm font-medium leading-tight text-dxnavy dark:text-gray-100">{user.name}</p>
                   <p className="text-[11px] text-dxgray dark:text-gray-400">{user.email}</p>
@@ -640,6 +659,15 @@ function Home({ access }: { access: Access }) {
               </div>
             )}
             <div className={`${access.enabled && user ? "" : "ml-auto "}flex shrink-0 items-center gap-2`}>
+            <button
+              type="button"
+              onClick={refreshAll}
+              title="Volver a consultar Asana en todas las secciones abiertas (proyectos, vista previa, informes y descartados)"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-xs font-medium text-dxnavy transition hover:bg-gray-100 dark:border-gray-600 dark:bg-[#262b33] dark:text-gray-200 dark:hover:bg-[#2e343d]"
+            >
+              <RefreshIcon className={`h-4 w-4 ${projectsLoading ? "animate-spin" : ""}`} />
+              <span>Actualizar todo</span>
+            </button>
             <InstallApp />
             <button
               type="button"
@@ -795,15 +823,13 @@ function Home({ access }: { access: Access }) {
                 Proyecto
               </p>
               {hasAuth && (
-                <button
-                  type="button"
-                  onClick={loadProjects}
+                <RefreshButton
+                  onClick={refreshProjects}
+                  loading={projectsLoading}
                   disabled={busy}
-                  title="Actualizar lista de proyectos"
-                  className="text-dxgray dark:text-gray-400 hover:text-dxnavy dark:hover:text-dxblue disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  <RefreshIcon className={`h-4 w-4 ${projectsLoading ? "animate-spin" : ""}`} />
-                </button>
+                  updatedAt={projectsUpdatedAt}
+                  title="Volver a consultar los proyectos en Asana"
+                />
               )}
             </div>
 
@@ -898,6 +924,14 @@ function Home({ access }: { access: Access }) {
                       {preview.pct}%
                     </div>
                     <div className="text-[11px] text-dxgray dark:text-gray-400">avance</div>
+                    <div className="mt-2">
+                      <RefreshButton
+                        onClick={loadPreview}
+                        loading={previewLoading}
+                        updatedAt={previewUpdatedAt}
+                        title="Volver a consultar este proyecto en Asana"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1173,6 +1207,7 @@ function Home({ access }: { access: Access }) {
               storageKey="asanaweb.report_portfolio.v1"
               step={4}
               canGantt={canGenerate}
+              refreshTick={refreshTick}
             />
             <PortfolioReport
               connected={connected}
@@ -1183,6 +1218,7 @@ function Home({ access }: { access: Access }) {
               storageKey="asanaweb.report_portfolio_imp.v1"
               step={5}
               canGantt={canGenerate}
+              refreshTick={refreshTick}
             />
             </div>
             <DiscardedProjects
@@ -1191,6 +1227,7 @@ function Home({ access }: { access: Access }) {
               onDone={setToast}
               step={6}
               canGantt={canGenerate}
+              refreshTick={refreshTick}
               sources={[
                 {
                   label: "Desarrollo",

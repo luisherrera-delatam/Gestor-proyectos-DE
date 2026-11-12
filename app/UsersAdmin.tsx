@@ -12,6 +12,7 @@ import {
   type User,
 } from "@/lib/roles";
 import type { MailDelivery } from "@/lib/user-mail";
+import { RefreshButton } from "./ReportBits";
 
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-[#1c2027] dark:text-gray-100 dark:placeholder-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-dxnavy dark:focus:ring-dxblue focus:border-transparent text-sm";
@@ -616,6 +617,8 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
   const [delivery, setDelivery] = useState<MailDelivery | null>(null);
   const [notice, setNotice] = useState<{ email: string; password: string } | null>(null);
   const [busyId, setBusyId] = useState<number | "new" | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [form, setForm] = useState<{
     name: string;
     email: string;
@@ -634,11 +637,15 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
   const [info, setInfo] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setListLoading(true);
     try {
       const data = await api<{ users: User[] }>("/api/users");
       setUsers(data.users);
+      setUpdatedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar la lista de usuarios.");
+    } finally {
+      setListLoading(false);
     }
   }, []);
 
@@ -724,13 +731,24 @@ export default function UsersAdmin({ meId, onClose }: { meId: number; onClose: (
             Crea usuarios y decide qué puede hacer cada uno en el gestor.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-dxnavy hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-[#2e343d]"
-        >
-          Cerrar
-        </button>
+        <div className="flex items-center gap-2">
+          <RefreshButton
+            onClick={() => {
+              projectsCache = null; // también la lista de proyectos para asignar a clientes
+              load();
+            }}
+            loading={listLoading}
+            updatedAt={updatedAt}
+            title="Volver a cargar usuarios y la lista de proyectos de Asana"
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-dxnavy hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-[#2e343d]"
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
 
       {/* Qué hace cada permiso */}

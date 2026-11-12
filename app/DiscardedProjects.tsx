@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { shortDate, type ReportProject } from "@/lib/portfolio-report";
-import { GanttButton, Icon, ProgressInline, SectionHeader } from "./ReportBits";
+import { GanttButton, Icon, ProgressInline, RefreshButton, SectionHeader } from "./ReportBits";
 
 export interface PortfolioSource {
   /** "Desarrollo", "Implementaciones"… */
@@ -20,6 +20,8 @@ interface Props {
   onDone?: (message: string) => void;
   /** El usuario puede descargar el Gantt (no "Solo vista"). */
   canGantt?: boolean;
+  /** Cambia con "Actualizar todo" del encabezado. */
+  refreshTick?: number;
 }
 
 interface Row extends ReportProject {
@@ -35,12 +37,13 @@ function portfolioUrl(src: PortfolioSource): string {
 }
 
 /** Proyectos descartados (estatus "Descartado" en Asana) de todos los portafolios. */
-export default function DiscardedProjects({ connected, token, step, sources, onDone, canGantt = true }: Props) {
+export default function DiscardedProjects({ connected, token, step, sources, onDone, canGantt = true, refreshTick = 0 }: Props) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<string>("Todos");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   async function load() {
     setLoading(true);
@@ -75,7 +78,15 @@ export default function DiscardedProjects({ connected, token, step, sources, onD
     setErrors(results.map((r) => r.error).filter(Boolean) as string[]);
     setFilter("Todos");
     setLoading(false);
+    setUpdatedAt(new Date());
   }
+
+  // "Actualizar todo" del encabezado: vuelve a consultar si ya hay datos en pantalla.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshTick > 0 && rows) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
 
   const visible = rows?.filter((r) => filter === "Todos" || r.portfolio === filter) ?? [];
   const filters = ["Todos", ...sources.map((s) => s.label)];
@@ -92,15 +103,19 @@ export default function DiscardedProjects({ connected, token, step, sources, onD
           {sources.map((s) => s.label.toLowerCase()).join(" e ")}. No cuentan como finalizados ni
           como pendientes.
         </SectionHeader>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="inline-flex shrink-0 items-center justify-center gap-2 px-5 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <Icon name="x" />
-          {loading ? "Consultando Asana…" : rows ? "Actualizar descartados" : "Consultar descartados"}
-        </button>
+        {rows ? (
+          <RefreshButton onClick={load} loading={loading} updatedAt={updatedAt} />
+        ) : (
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex shrink-0 items-center justify-center gap-2 px-5 bg-dxnavy text-white font-medium py-2.5 rounded-md hover:bg-[#08234a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <Icon name="x" />
+            {loading ? "Consultando Asana…" : "Consultar descartados"}
+          </button>
+        )}
       </div>
 
       {errors.map((e) => (
